@@ -13,7 +13,7 @@ export async function downloadAndUpload(
   const { data, error } = await supabase.storage
     .from("generated-images")
     .upload(fileName, buffer, {
-      contentType: response.headers["content-type"] || "image/png",
+      contentType: (response.headers["content-type"] as string) || "image/png",
       upsert: true,
     });
 
