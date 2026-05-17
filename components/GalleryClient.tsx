@@ -88,8 +88,8 @@ export default function GalleryClient({ initialItems, total }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
-        <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
+        <div className="px-6 py-6">
           <h1 className="mb-6 text-2xl font-bold text-gray-900">我的画廊</h1>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <ImageOff className="mb-4 size-12" />
@@ -107,8 +107,8 @@ export default function GalleryClient({ initialItems, total }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
-      <div className="mx-auto max-w-7xl px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
+      <div className="px-6 py-6">
         <div className="mb-6 flex items-baseline gap-2">
           <h1 className="text-2xl font-bold text-gray-900">我的画廊</h1>
           <span className="text-sm text-gray-400">{total} 张</span>

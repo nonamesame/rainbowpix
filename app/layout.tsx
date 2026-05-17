@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Image from "next/image";
-import Link from "next/link";
 import { Toaster } from "react-hot-toast";
 import { createClient } from "@/lib/supabase/server";
-import Navbar from "@/components/navbar";
+import AppShell from "@/components/AppShell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,24 +26,18 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <html
       lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <Navbar user={user} />
-        {children}
+      <body className="min-h-full">
+        <AppShell user={user}>{children}</AppShell>
         <Toaster position="top-center" />
-        <footer className="border-t bg-white/80 py-6 mt-auto">
-          <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-center gap-4 text-sm text-gray-500">
-            <Link href="/terms" className="hover:text-[#7c3aed]">用户服务协议</Link>
-            <Link href="/privacy" className="hover:text-[#7c3aed]">隐私政策</Link>
-            <Link href="/complaint" className="hover:text-[#7c3aed]">侵权投诉</Link>
-          </div>
-        </footer>
       </body>
     </html>
   );

@@ -153,8 +153,12 @@ export default function GeneratePageClient({ examples }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
-      <div className="mx-auto max-w-7xl px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
+      <div className="px-6 py-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">AI 绘画</h1>
+          <p className="mt-1 text-sm text-gray-500">输入提示词，让AI为你创作</p>
+        </div>
         <div className="flex flex-col gap-6 lg:flex-row" style={{ gap: 24 }}>
           {/* 左侧表单 */}
           <div className="w-full lg:w-[60%]">
