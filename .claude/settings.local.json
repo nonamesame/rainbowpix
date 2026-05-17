@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init -d)",
+      "Bash(npx shadcn@latest add input card dialog select sonner -y)",
+      "Bash(dir \"D:/projects/rainbowpix/.env\"*)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(grep -v \"^'\\\\\\\\./\")",
+      "WebSearch",
+      "WebFetch(domain:www.volcengine.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(pip show *)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/volcengine/volc-sdk-python/main/volcengine/visual/VisualService.py\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/volcengine/volc-sdk-python/main/volcengine/service/VolcEngineServiceBase.py\")",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(i.get\\('path',''\\)\\) for i in data.get\\('items',[]\\)]\")",
+      "Bash(gh api *)",
+      "Bash(gh auth *)",
+      "Bash(npx next *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}
