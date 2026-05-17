@@ -47,7 +47,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-[400px] rounded-[20px] shadow-lg py-8">
         <CardContent className="flex flex-col gap-5">
           <div className="flex items-center justify-center gap-2.5">
-            <Image src="/logo.svg" alt="Logo" width={40} height={40} />
+            <Image src="/logo.png" alt="Logo" width={40} height={40} />
             <span className="text-[20px] font-[600] text-[#1f2937]">RainbowPix</span>
           </div>
 

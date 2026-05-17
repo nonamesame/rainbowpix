@@ -11,7 +11,7 @@ export default function Navbar({ user }: { user: User | null }) {
   return (
     <nav className="h-14 border-b bg-white/80 backdrop-blur-sm flex items-center justify-between px-6">
       <Link href="/generate" className="flex items-center gap-2">
-        <Image src="/logo.svg" alt="Logo" width={28} height={28} />
+        <Image src="/logo.png" alt="Logo" width={28} height={28} />
         <span className="text-base font-semibold text-[#1f2937]">RainbowPix</span>
       </Link>
       <div>
