@@ -1,24 +1,26 @@
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 import DashboardClient from "@/components/DashboardClient";
 
 export const revalidate = 60;
 
 export default async function Home() {
-  const supabase = await createClient();
+  const publicQuery = {
+    $or: [{ is_public: true }, { is_builtin: true }],
+  };
 
-  const { data: featuredExamples } = await supabase
-    .from("examples")
-    .select("*")
-    .or("is_public.eq.true,is_builtin.eq.true")
-    .order("created_at", { ascending: false })
-    .limit(8);
+  const { data: featuredExamples } = await serverDb
+    .collection("examples")
+    .where(publicQuery)
+    .orderBy("created_at", "desc")
+    .limit(8)
+    .get();
 
-  const { data: latestExamples } = await supabase
-    .from("examples")
-    .select("*")
-    .or("is_public.eq.true,is_builtin.eq.true")
-    .order("created_at", { ascending: false })
-    .limit(12);
+  const { data: latestExamples } = await serverDb
+    .collection("examples")
+    .where(publicQuery)
+    .orderBy("created_at", "desc")
+    .limit(12)
+    .get();
 
   return (
     <DashboardClient

@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-[#1f2937] mb-3">三、存储位置</h2>
             <p className="text-gray-600 leading-relaxed">
-              您的数据存储在 Supabase 云平台上，服务器位于海外（具体区域由 Supabase 托管服务决定）。
+              您的数据存储在腾讯云 CloudBase 云平台上，服务器位于中国境内。
               我们将按照相关法律法规的要求保护您的数据安全。
             </p>
           </section>

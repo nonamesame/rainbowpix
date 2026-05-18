@@ -1,35 +1,43 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { serverDb } from "@/lib/cloudbase/server";
 import GalleryClient from "@/components/GalleryClient";
 
 export const revalidate = 0;
 
 export default async function GalleryPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const userCookie = cookieStore.get("tcb_user")?.value;
 
-  if (!user) {
+  if (!userCookie) {
     redirect("/login");
   }
 
-  const { data: items } = await supabase
-    .from("generations")
-    .select("id, prompt, model, image_url, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .range(0, 11);
+  let user: { uid: string; email?: string };
+  try {
+    user = JSON.parse(atob(userCookie));
+  } catch {
+    redirect("/login");
+  }
 
-  const { count } = await supabase
-    .from("generations")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id);
+  const { data: items } = await serverDb
+    .collection("generations")
+    .where({ user_id: user.uid })
+    .field(["id", "prompt", "model", "image_url", "created_at"])
+    .orderBy("created_at", "desc")
+    .skip(0)
+    .limit(12)
+    .get();
+
+  const { total } = await serverDb
+    .collection("generations")
+    .where({ user_id: user.uid })
+    .count();
 
   return (
     <GalleryClient
       initialItems={items || []}
-      total={count ?? 0}
+      total={total ?? 0}
     />
   );
 }

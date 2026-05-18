@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User } from "@supabase/supabase-js";
+import { TcbUser } from "@/lib/cloudbase/types";
 import {
   Palette,
   Image as ImageIcon,
@@ -15,11 +15,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabase/client";
+import { getAuth } from "@/lib/cloudbase/client";
 import { useState } from "react";
 
 interface Props {
-  user: User | null;
+  user: TcbUser | null;
 }
 
 const navItems = [
@@ -35,7 +35,10 @@ export default function Sidebar({ user }: Props) {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const auth = getAuth();
+    await auth.signOut();
+    document.cookie = "tcb_access_token=; path=/; max-age=0";
+    document.cookie = "tcb_user=; path=/; max-age=0";
     window.location.href = "/login";
   };
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 
 export async function POST(request: NextRequest) {
   const adminKey = request.headers.get("x-admin-key");
@@ -15,29 +15,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const { id } = await serverDb.collection("examples").add({
+    image_url,
+    prompt,
+    negative_prompt: negative_prompt || null,
+    model,
+    width: width || 1024,
+    height: height || 1024,
+    category: category || null,
+    is_builtin: true,
+    is_public: true,
+    author_id: null,
+    created_at: new Date().toISOString(),
+  });
 
-  const { data, error } = await supabase
-    .from("examples")
-    .insert({
-      image_url,
-      prompt,
-      negative_prompt: negative_prompt || null,
-      model,
-      width: width || 1024,
-      height: height || 1024,
-      category: category || null,
-      is_builtin: true,
-      is_public: true,
-      author_id: null,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ id, image_url, prompt, model }, { status: 201 });
 }

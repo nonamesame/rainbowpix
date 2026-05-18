@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { models } from "@/lib/models";
+import { toProxyUrl } from "@/lib/image-url";
 
 interface Generation {
   id: string;
@@ -73,7 +74,7 @@ export default function GalleryClient({ initialItems, total }: Props) {
 
   async function handleDownload(item: Generation) {
     try {
-      const res = await fetch(item.image_url);
+      const res = await fetch(toProxyUrl(item.image_url));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -125,7 +126,7 @@ export default function GalleryClient({ initialItems, total }: Props) {
               <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={item.image_url}
+                  src={toProxyUrl(item.image_url)}
                   alt={item.prompt}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
@@ -184,7 +185,7 @@ export default function GalleryClient({ initialItems, total }: Props) {
               <div className="relative overflow-hidden rounded-xl bg-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={selected.image_url}
+                  src={toProxyUrl(selected.image_url)}
                   alt={selected.prompt}
                   className="w-full object-contain"
                 />

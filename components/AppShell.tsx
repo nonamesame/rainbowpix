@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { User } from "@supabase/supabase-js";
+import { TcbUser } from "@/lib/cloudbase/types";
 import Sidebar from "@/components/Sidebar";
 import RightSidebar from "@/components/RightSidebar";
 
 interface Props {
-  user: User | null;
+  user: TcbUser | null;
   children: React.ReactNode;
 }
 

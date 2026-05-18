@@ -1,5 +1,5 @@
 import axios from "axios";
-import { createClient } from "./supabase/server";
+import app from "./cloudbase/server";
 
 export async function downloadAndUpload(
   tempUrl: string,
@@ -8,22 +8,13 @@ export async function downloadAndUpload(
   const response = await axios.get(tempUrl, { responseType: "arraybuffer" });
   const buffer = Buffer.from(response.data);
 
-  const supabase = await createClient();
+  const cloudPath = `generated-images/${fileName}`;
 
-  const { data, error } = await supabase.storage
-    .from("generated-images")
-    .upload(fileName, buffer, {
-      contentType: (response.headers["content-type"] as string) || "image/png",
-      upsert: true,
-    });
+  await app.uploadFile({
+    cloudPath,
+    fileContent: buffer,
+  });
 
-  if (error) {
-    throw error;
-  }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("generated-images").getPublicUrl(data.path);
-
-  return publicUrl;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${siteUrl}/api/images/${cloudPath}`;
 }

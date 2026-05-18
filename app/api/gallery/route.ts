@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userPayload = request.cookies.get("tcb_user")?.value;
+  if (!userPayload) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
 
-  if (!user) {
+  let user: { uid: string };
+  try {
+    user = JSON.parse(atob(userPayload));
+  } catch {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
@@ -15,29 +18,26 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
   const pageSize = 12;
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
 
-  const { data, error } = await supabase
-    .from("generations")
-    .select("id, prompt, model, image_url, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  const { data } = await serverDb
+    .collection("generations")
+    .where({ user_id: user.uid })
+    .field(["id", "prompt", "model", "image_url", "created_at"])
+    .orderBy("created_at", "desc")
+    .skip(from)
+    .limit(pageSize)
+    .get();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const { count } = await supabase
-    .from("generations")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id);
+  const { total } = await serverDb
+    .collection("generations")
+    .where({ user_id: user.uid })
+    .count();
 
   return NextResponse.json({
-    items: data,
-    total: count ?? 0,
+    items: data || [],
+    total: total ?? 0,
     page,
     pageSize,
-    hasMore: to + 1 < (count ?? 0),
+    hasMore: from + pageSize < (total ?? 0),
   });
 }

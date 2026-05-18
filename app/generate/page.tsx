@@ -1,17 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 import GeneratePageClient from "@/components/GeneratePageClient";
 
 export const revalidate = 60;
 
 export default async function GeneratePage() {
-  const supabase = await createClient();
-
-  const { data: examples } = await supabase
-    .from("examples")
-    .select("*")
-    .or("is_public.eq.true,is_builtin.eq.true")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const { data: examples } = await serverDb
+    .collection("examples")
+    .where({
+      $or: [{ is_public: true }, { is_builtin: true }],
+    })
+    .orderBy("created_at", "desc")
+    .limit(20)
+    .get();
 
   return <GeneratePageClient examples={examples || []} />;
 }

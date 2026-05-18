@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import AppShell from "@/components/AppShell";
 import "./globals.css";
 
@@ -25,10 +25,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const userCookie = cookieStore.get("tcb_user")?.value;
+  let user = null;
+
+  if (userCookie) {
+    try {
+      user = JSON.parse(atob(userCookie));
+    } catch {
+      user = null;
+    }
+  }
 
   return (
     <html

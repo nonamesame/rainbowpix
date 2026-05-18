@@ -1,5 +1,5 @@
 import axios from "axios";
-import { createClient } from "./supabase/server";
+import app from "./cloudbase/server";
 
 export async function generateImage(
   prompt: string,
@@ -19,23 +19,14 @@ export async function generateImage(
   const b64 = response.data.data[0].b64_json;
   const buffer = Buffer.from(b64, "base64");
 
-  const supabase = await createClient();
   const fileName = `hmvi-${Date.now()}.png`;
+  const cloudPath = `generated-images/${fileName}`;
 
-  const { data, error } = await supabase.storage
-    .from("generated-images")
-    .upload(fileName, buffer, {
-      contentType: "image/png",
-      upsert: false,
-    });
+  await app.uploadFile({
+    cloudPath,
+    fileContent: buffer,
+  });
 
-  if (error) {
-    throw error;
-  }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("generated-images").getPublicUrl(data.path);
-
-  return publicUrl;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${siteUrl}/api/images/${cloudPath}`;
 }

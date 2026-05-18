@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-
   const body = await request.json();
   const { name, email, url, description } = body;
 
@@ -11,25 +9,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data, error } = await supabase
-    .from("complaints")
-    .insert({
-      name,
-      email,
-      url,
-      description,
-      user_id: user?.id || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const userPayload = request.cookies.get("tcb_user")?.value;
+  let userId: string | null = null;
+  if (userPayload) {
+    try {
+      const user = JSON.parse(atob(userPayload));
+      userId = user.uid || null;
+    } catch {
+      // ignore
+    }
   }
 
-  return NextResponse.json(data, { status: 201 });
+  const { id } = await serverDb.collection("complaints").add({
+    name,
+    email,
+    url,
+    description,
+    user_id: userId,
+  });
+
+  return NextResponse.json({ id, name, email, url, description }, { status: 201 });
 }

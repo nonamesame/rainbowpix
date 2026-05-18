@@ -1,43 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
 
   const category = searchParams.get("category");
   const limit = Number(searchParams.get("limit")) || 20;
   const offset = Number(searchParams.get("offset")) || 0;
 
-  let query = supabase
-    .from("examples")
-    .select("*")
-    .or("is_public.eq.true,is_builtin.eq.true")
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  const where: Record<string, unknown> = {
+    $or: [{ is_public: true }, { is_builtin: true }],
+  };
 
   if (category) {
-    query = query.eq("category", category);
+    where.category = category;
   }
 
-  const { data, error } = await query;
+  const { data } = await serverDb
+    .collection("examples")
+    .where(where)
+    .orderBy("created_at", "desc")
+    .skip(offset)
+    .limit(limit)
+    .get();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
+  return NextResponse.json(data || []);
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
+  const userPayload = request.cookies.get("tcb_user")?.value;
+  if (!userPayload) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  let user: { uid: string };
+  try {
+    user = JSON.parse(atob(userPayload));
+  } catch {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
@@ -48,26 +47,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from("examples")
-    .insert({
-      image_url,
-      prompt,
-      negative_prompt: negative_prompt || null,
-      model,
-      width: width || 1024,
-      height: height || 1024,
-      is_builtin: false,
-      is_public: true,
-      author_id: user.id,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  const { id } = await serverDb.collection("examples").add({
+    image_url,
+    prompt,
+    negative_prompt: negative_prompt || null,
+    model,
+    width: width || 1024,
+    height: height || 1024,
+    is_builtin: false,
+    is_public: true,
+    author_id: user.uid,
+    created_at: new Date().toISOString(),
+  });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ id, image_url, prompt, model }, { status: 201 });
 }

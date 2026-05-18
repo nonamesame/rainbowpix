@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { models } from "@/lib/models";
+import { toProxyUrl } from "@/lib/image-url";
 
 interface Example {
   id: string;
@@ -184,7 +185,7 @@ export default function DashboardClient({
                   <div className="relative h-40 w-40 overflow-hidden rounded-2xl bg-gray-100 shadow-sm transition-all group-hover:shadow-md">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={ex.image_url}
+                      src={toProxyUrl(ex.image_url)}
                       alt={ex.prompt}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
@@ -231,7 +232,7 @@ export default function DashboardClient({
                   <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={ex.image_url}
+                      src={toProxyUrl(ex.image_url)}
                       alt={ex.prompt}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {

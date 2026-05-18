@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { models } from "@/lib/models";
+import { toProxyUrl } from "@/lib/image-url";
 
 interface Example {
   id: string;
@@ -107,7 +108,7 @@ export default function GeneratePageClient({ examples }: Props) {
   async function handleDownload() {
     if (!result) return;
     try {
-      const res = await fetch(result.image_url);
+      const res = await fetch(toProxyUrl(result.image_url));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -284,7 +285,7 @@ export default function GeneratePageClient({ examples }: Props) {
                   <div className="relative overflow-hidden rounded-xl">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={result.image_url}
+                      src={toProxyUrl(result.image_url)}
                       alt="生成结果"
                       className="w-full rounded-xl object-cover"
                     />
@@ -334,7 +335,7 @@ export default function GeneratePageClient({ examples }: Props) {
                   <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={ex.image_url}
+                      src={toProxyUrl(ex.image_url)}
                       alt={ex.prompt}
                       className="h-full w-full object-cover"
                       onError={(e) => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { createClient } from "@/lib/supabase/server";
+import { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
 import { downloadAndUpload } from "@/lib/upload";
 import { generateImage as generateJimeng } from "@/lib/jimeng";
@@ -17,13 +17,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未提供认证令牌" }, { status: 401 });
     }
 
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
+    // Verify token via cookie-based user info
+    const userPayload = request.cookies.get("tcb_user")?.value;
+    if (!userPayload) {
+      return NextResponse.json({ error: "无效的认证令牌" }, { status: 401 });
+    }
 
-    if (authError || !user) {
+    let user: { uid: string; email?: string };
+    try {
+      user = JSON.parse(atob(userPayload));
+    } catch {
       return NextResponse.json({ error: "无效的认证令牌" }, { status: 401 });
     }
 
@@ -38,8 +41,8 @@ export async function POST(request: NextRequest) {
     // 3. 安全审核
     const checkResult = await checkPrompt(prompt);
     if (!checkResult.passed) {
-      await supabase.from("audit_logs").insert({
-        user_id: user.id,
+      await serverDb.collection("audit_logs").add({
+        user_id: user.uid,
         prompt,
         reason: checkResult.reason,
         created_at: new Date().toISOString(),
@@ -70,28 +73,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `不支持的模型: ${model}` }, { status: 400 });
     }
 
-    // 5. 写入 generations 表
-    const { data: generation, error: dbError } = await supabase
-      .from("generations")
-      .insert({
-        user_id: user.id,
-        prompt,
-        model,
-        image_url: imageUrl,
-        created_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (dbError) {
-      throw dbError;
-    }
+    // 5. 写入 generations 集合
+    const { id } = await serverDb.collection("generations").add({
+      user_id: user.uid,
+      prompt,
+      model,
+      image_url: imageUrl,
+      created_at: new Date().toISOString(),
+    });
 
     // 6. 返回结果
     return NextResponse.json({
       success: true,
       image_url: imageUrl,
-      generation_id: generation.id,
+      generation_id: id,
     });
   } catch (error) {
     Sentry.captureException(error);

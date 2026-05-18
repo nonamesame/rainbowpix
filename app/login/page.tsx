@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { supabase } from "@/lib/supabase/client";
+import { getAuth } from "@/lib/cloudbase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,27 +19,45 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("登录成功");
-      router.push("/generate");
+    try {
+      const auth = getAuth();
+      const res = await auth.signInWithEmailAndPassword(email, password);
+      if ("error" in res && res.error) {
+        toast.error(res.error.message);
+      } else {
+        const loginState = await auth.getLoginState();
+        if (loginState) {
+          const { accessToken } = await auth.getAccessToken();
+          const userInfo = loginState.user;
+          const userPayload = btoa(JSON.stringify({ uid: userInfo.uid, email: userInfo.email }));
+          document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
+          document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+        }
+        toast.success("登录成功");
+        router.push("/generate");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "登录失败");
     }
+    setLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("注册成功，请查收邮箱验证");
-      router.push("/generate");
+    try {
+      const auth = getAuth();
+      const res = await auth.signUpWithEmailAndPassword(email, password);
+      if ("error" in res && res.error) {
+        toast.error(res.error.message);
+      } else {
+        toast.success("注册成功，请查收邮箱验证");
+        router.push("/generate");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "注册失败");
     }
+    setLoading(false);
   };
 
   return (
