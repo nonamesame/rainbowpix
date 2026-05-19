@@ -10,31 +10,96 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
+type PageState = "login" | "register" | "verify";
+type LoginMode = "phone" | "email";
+type RegisterBind = "phone" | "email";
+
+function formatPhone(phone: string): string {
+  // 移除所有空格、横杠、括号
+  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
+  // 如果已带+号，直接返回
+  if (cleaned.startsWith("+")) return cleaned;
+  // 中国手机号：去掉开头的0，加+86
+  if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
+  return `+86 ${cleaned}`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [state, setState] = useState<PageState>("login");
+  const [loginMode, setLoginMode] = useState<LoginMode>("phone");
+  const [registerBind, setRegisterBind] = useState<RegisterBind>("phone");
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
+  // 登录字段
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // 注册字段
+  const [regUsername, setRegUsername] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regCode, setRegCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [verificationId, setVerificationId] = useState("");
+
+  const startCountdown = () => {
+    setCountdown(60);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const saveCookiesAndRedirect = async (auth: ReturnType<typeof getAuth>) => {
+    const loginState = await auth.getLoginState();
+    if (loginState) {
+      const { accessToken } = await auth.getAccessToken();
+      const userInfo = loginState.user;
+      const userPayload = btoa(
+        JSON.stringify({
+          uid: userInfo.uid,
+          email: userInfo.email,
+          phone: userInfo.phoneNumber,
+        })
+      );
+      document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+    }
+    toast.success("登录成功");
+    router.push("/generate");
+  };
+
+  // ========== 登录 ==========
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const auth = getAuth();
-      const res = await auth.signInWithEmailAndPassword(email, password);
+      const identifier =
+        loginMode === "phone" ? formatPhone(loginPhone) : loginEmail;
+      if (!identifier || !loginPassword) {
+        toast.error("请填写完整信息");
+        setLoading(false);
+        return;
+      }
+      const res = await auth.signIn({
+        username: identifier,
+        password: loginPassword,
+      } as any);
       if ("error" in res && res.error) {
-        toast.error(res.error.message);
+        toast.error(res.error.message || "登录失败");
       } else {
-        const loginState = await auth.getLoginState();
-        if (loginState) {
-          const { accessToken } = await auth.getAccessToken();
-          const userInfo = loginState.user;
-          const userPayload = btoa(JSON.stringify({ uid: userInfo.uid, email: userInfo.email }));
-          document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
-          document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
-        }
-        toast.success("登录成功");
-        router.push("/generate");
+        await saveCookiesAndRedirect(auth);
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "登录失败");
@@ -42,81 +107,366 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ========== 注册 - 发送验证码 ==========
+  const handleSendCode = async () => {
+    if (registerBind === "phone" && !regPhone) {
+      toast.error("请输入手机号");
+      return;
+    }
+    if (registerBind === "phone") {
+      const phoneNum = formatPhone(regPhone);
+      console.log("Formatted phone:", phoneNum);
+      if (!/^\+[1-9][0-9]{0,3}\s[0-9]{4,20}$/.test(phoneNum)) {
+        toast.error("手机号格式不正确，请输入11位手机号");
+        return;
+      }
+    }
+    if (registerBind === "email" && !regEmail) {
+      toast.error("请输入邮箱");
+      return;
+    }
     setLoading(true);
     try {
       const auth = getAuth();
-      const res = await auth.signUpWithEmailAndPassword(email, password);
-      if ("error" in res && res.error) {
-        toast.error(res.error.message);
+      let verificationRes;
+      if (registerBind === "phone") {
+        const phoneNum = formatPhone(regPhone);
+        console.log("Sending verification to phone:", phoneNum);
+        verificationRes = await auth.getVerification({
+          phone_number: phoneNum,
+        });
       } else {
-        toast.success("注册成功，请查收邮箱验证");
-        router.push("/generate");
+        console.log("Sending verification to email:", regEmail);
+        verificationRes = await auth.getVerification({ email: regEmail });
+      }
+      console.log("getVerification response:", verificationRes);
+      if (verificationRes?.verification_id) {
+        setVerificationId(verificationRes.verification_id);
+      }
+      toast.success("验证码已发送");
+      setCodeSent(true);
+      startCountdown();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "发送验证码失败");
+    }
+    setLoading(false);
+  };
+
+  // ========== 注册 - 提交 ==========
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regUsername || !regPassword || !regCode) {
+      toast.error("请填写完整信息");
+      return;
+    }
+    if (!/^[a-z][0-9a-z_-]{5,24}$/.test(regUsername)) {
+      toast.error("用户名格式：小写字母开头，6-25位，只含字母/数字/下划线/横杠");
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
+      toast.error("两次密码不一致");
+      return;
+    }
+    if (regPassword.length < 6) {
+      toast.error("密码至少6位");
+      return;
+    }
+    setLoading(true);
+    try {
+      const auth = getAuth();
+
+      // Step 1: 验证验证码，获取 verification_token
+      console.log("Verifying code:", regCode, "verification_id:", verificationId);
+      const verifyRes = await auth.verify({
+        verification_code: regCode,
+        verification_id: verificationId,
+      });
+      console.log("verify response:", verifyRes);
+
+      if (!verifyRes?.verification_token) {
+        toast.error("验证码验证失败");
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: 使用 verification_token 注册
+      const params: Record<string, string> = {
+        username: regUsername,
+        password: regPassword,
+        verification_token: verifyRes.verification_token,
+      };
+      if (registerBind === "phone") {
+        const phoneNum = formatPhone(regPhone);
+        console.log("Registration phone:", phoneNum);
+        params.phone_number = phoneNum;
+      } else {
+        params.email = regEmail;
+      }
+      console.log("signUp params:", params);
+      const res = await auth.signUp(params as any);
+      console.log("signUp response:", res);
+      if ("error" in res && res.error) {
+        console.error("signUp error:", res.error);
+        toast.error(res.error.message || "注册失败");
+      } else {
+        toast.success("注册成功");
+        await saveCookiesAndRedirect(auth);
       }
     } catch (err: unknown) {
+      console.error("signUp exception:", err);
       toast.error(err instanceof Error ? err.message : "注册失败");
     }
     setLoading(false);
   };
 
+  // ========== 渲染 ==========
   return (
     <div className="min-h-screen bg-gradient-to-br from-white to-gray-50 flex flex-col">
       <nav className="h-14 border-b bg-white/80 backdrop-blur-sm flex items-center px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo.png" alt="Logo" width={28} height={28} />
-          <span className="text-base font-semibold text-[#1f2937]">RainbowPix</span>
+          <span className="text-base font-semibold text-[#1f2937]">
+            RainbowPix
+          </span>
         </Link>
       </nav>
+
       <main className="flex flex-1 items-center justify-center p-4">
         <Card className="w-full max-w-[400px] rounded-[20px] shadow-lg py-8">
           <CardContent className="flex flex-col gap-5">
             <div className="flex items-center justify-center gap-2.5">
               <Image src="/logo.png" alt="Logo" width={40} height={40} />
-              <span className="text-[20px] font-[600] text-[#1f2937]">RainbowPix</span>
+              <span className="text-[20px] font-[600] text-[#1f2937]">
+                RainbowPix
+              </span>
             </div>
 
-            <form className="flex flex-col gap-5">
-              <Input
-                type="email"
-                placeholder="请输入邮箱"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
-              />
-              <Input
-                type="password"
-                placeholder="请输入密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
-              />
-              <Button
-                type="submit"
-                onClick={handleLogin}
-                disabled={loading}
-                className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
-              >
-                {loading ? "处理中..." : "登录"}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSignUp}
-                disabled={loading}
-                variant="outline"
-                className="h-11 rounded-xl border-[#7c3aed] text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
-              >
-                {loading ? "处理中..." : "注册"}
-              </Button>
-            </form>
+            {/* ===== 登录 ===== */}
+            {state === "login" && (
+              <>
+                <div className="flex rounded-xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setLoginMode("phone")}
+                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                      loginMode === "phone"
+                        ? "bg-white text-[#7c3aed] shadow-sm"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    手机号登录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMode("email")}
+                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                      loginMode === "email"
+                        ? "bg-white text-[#7c3aed] shadow-sm"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    邮箱登录
+                  </button>
+                </div>
+
+                <form onSubmit={handleLogin} className="flex flex-col gap-5">
+                  {loginMode === "phone" ? (
+                    <Input
+                      type="tel"
+                      placeholder="请输入手机号"
+                      value={loginPhone}
+                      onChange={(e) => setLoginPhone(e.target.value)}
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    />
+                  ) : (
+                    <Input
+                      type="email"
+                      placeholder="请输入邮箱"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    />
+                  )}
+                  <Input
+                    type="password"
+                    placeholder="请输入密码"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                  >
+                    {loading ? "处理中..." : "登录"}
+                  </Button>
+                </form>
+
+                <p className="text-center text-sm text-gray-500">
+                  还没有账号？{" "}
+                  <button
+                    type="button"
+                    onClick={() => setState("register")}
+                    className="text-[#7c3aed] font-medium hover:underline"
+                  >
+                    去注册
+                  </button>
+                </p>
+              </>
+            )}
+
+            {/* ===== 注册 ===== */}
+            {state === "register" && (
+              <>
+                <p className="text-center text-sm text-gray-500 -mt-2">
+                  创建账号
+                </p>
+
+                <form onSubmit={handleRegister} className="flex flex-col gap-4">
+                  <Input
+                    type="text"
+                    placeholder="用户名（小写字母开头，6-25位，含字母/数字/下划线/横杠）"
+                    value={regUsername}
+                    onChange={(e) => setRegUsername(e.target.value.toLowerCase())}
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="设置密码（至少6位）"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="确认密码"
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  />
+
+                  {/* 绑定方式切换 */}
+                  <div className="flex rounded-xl bg-gray-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegisterBind("phone");
+                        setCodeSent(false);
+                        setRegCode("");
+                      }}
+                      className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                        registerBind === "phone"
+                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      绑定手机号
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegisterBind("email");
+                        setCodeSent(false);
+                        setRegCode("");
+                      }}
+                      className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                        registerBind === "email"
+                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      绑定邮箱
+                    </button>
+                  </div>
+
+                  {/* 手机号/邮箱 + 验证码 */}
+                  {registerBind === "phone" ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="tel"
+                        placeholder="请输入手机号"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleSendCode}
+                        disabled={loading || countdown > 0}
+                        variant="outline"
+                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                      >
+                        {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="请输入邮箱"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleSendCode}
+                        disabled={loading || countdown > 0}
+                        variant="outline"
+                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                      >
+                        {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                      </Button>
+                    </div>
+                  )}
+
+                  {codeSent && (
+                    <Input
+                      type="text"
+                      placeholder="请输入验证码"
+                      value={regCode}
+                      onChange={(e) => setRegCode(e.target.value)}
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    />
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading || !codeSent}
+                    className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                  >
+                    {loading ? "处理中..." : "注册并登录"}
+                  </Button>
+                </form>
+
+                <p className="text-center text-sm text-gray-500">
+                  已有账号？{" "}
+                  <button
+                    type="button"
+                    onClick={() => setState("login")}
+                    className="text-[#7c3aed] font-medium hover:underline"
+                  >
+                    去登录
+                  </button>
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </main>
+
       <footer className="border-t bg-white/80 py-4">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-4 text-sm text-gray-500">
-          <Link href="/terms" className="hover:text-[#7c3aed]">用户服务协议</Link>
-          <Link href="/privacy" className="hover:text-[#7c3aed]">隐私政策</Link>
-          <Link href="/complaint" className="hover:text-[#7c3aed]">侵权投诉</Link>
+          <Link href="/terms" className="hover:text-[#7c3aed]">
+            用户服务协议
+          </Link>
+          <Link href="/privacy" className="hover:text-[#7c3aed]">
+            隐私政策
+          </Link>
+          <Link href="/complaint" className="hover:text-[#7c3aed]">
+            侵权投诉
+          </Link>
         </div>
       </footer>
     </div>

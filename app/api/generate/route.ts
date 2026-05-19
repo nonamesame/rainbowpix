@@ -9,25 +9,17 @@ import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. 验证用户身份
-    const authHeader = request.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json({ error: "未提供认证令牌" }, { status: 401 });
-    }
-
-    // Verify token via cookie-based user info
+    // 1. 验证用户身份（通过 cookie）
     const userPayload = request.cookies.get("tcb_user")?.value;
     if (!userPayload) {
-      return NextResponse.json({ error: "无效的认证令牌" }, { status: 401 });
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
     let user: { uid: string; email?: string };
     try {
       user = JSON.parse(atob(userPayload));
     } catch {
-      return NextResponse.json({ error: "无效的认证令牌" }, { status: 401 });
+      return NextResponse.json({ error: "登录信息无效" }, { status: 401 });
     }
 
     // 2. 解析请求参数

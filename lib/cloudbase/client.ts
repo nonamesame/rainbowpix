@@ -22,6 +22,7 @@ function getApp() {
     ensureRegistered();
     app = cloudbase.init({
       env: process.env.NEXT_PUBLIC_TCB_ENV_ID!,
+      region: "ap-shanghai",
     });
   }
   return app;

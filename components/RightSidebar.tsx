@@ -18,13 +18,6 @@ const quickActions = [
   { label: "无损放大", icon: Wand2, href: "#", color: "bg-emerald-50 text-emerald-600", disabled: true },
 ];
 
-const recentActivity = [
-  { name: "小明", action: "生成了一幅风景画", time: "3分钟前", avatar: "M" },
-  { name: "创作者A", action: "使用即梦4.0创作", time: "10分钟前", avatar: "A" },
-  { name: "设计师小红", action: "分享了作品到广场", time: "25分钟前", avatar: "R" },
-  { name: "用户007", action: "完成了图像编辑", time: "1小时前", avatar: "7" },
-  { name: "AI艺术家", action: "使用SDXL生成", time: "2小时前", avatar: "Z" },
-];
 
 export default function RightSidebar() {
   return (
@@ -96,30 +89,6 @@ export default function RightSidebar() {
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="px-5 py-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-800">最近活跃</h3>
-        <div className="flex flex-col gap-3">
-          {recentActivity.map((activity, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 text-[10px] font-bold text-white">
-                {activity.avatar}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">
-                    {activity.name}
-                  </span>{" "}
-                  {activity.action}
-                </p>
-                <p className="mt-0.5 text-[10px] text-gray-400">
-                  {activity.time}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </aside>
   );
 }
