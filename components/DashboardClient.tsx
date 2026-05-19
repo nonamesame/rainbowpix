@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Palette,
-  Search,
-  Bell,
-  ArrowRight,
-  ChevronRight,
-} from "lucide-react";
+import { Palette, ArrowRight, ChevronRight } from "lucide-react";
 import { models } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 
@@ -26,17 +20,6 @@ interface Props {
   latestExamples: Example[];
 }
 
-const quickActions = [
-  {
-    label: "AI 绘画",
-    description: "用AI创造独特画作",
-    icon: Palette,
-    href: "/generate",
-    gradient: "from-purple-500 to-indigo-600",
-    bg: "bg-purple-50",
-  },
-];
-
 function getModelName(modelId: string) {
   return models.find((m) => m.id === modelId)?.name || modelId;
 }
@@ -48,136 +31,56 @@ export default function DashboardClient({
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
-      {/* Top bar */}
-      <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-white/60 backdrop-blur-md px-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="搜索作品、模型、创作者..."
-            className="w-full rounded-xl border border-gray-200 bg-gray-50/50 py-2 pl-10 pr-4 text-sm outline-none transition-colors focus:border-purple-300 focus:bg-white"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100">
-            <Bell className="size-5" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-red-500" />
-          </button>
-        </div>
-      </div>
-
-      <div className="px-6 py-6">
-        {/* Welcome section */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">
+    <div className="min-h-screen">
+      <div className="px-4 py-6 md:px-6">
+        {/* Welcome */}
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900 md:text-2xl">
             欢迎回来，创作者！
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            用AI画出你的想象力
-          </p>
+          <p className="mt-1 text-sm text-gray-500">用AI画出你的想象力</p>
         </div>
 
-        {/* Quick action cards */}
-        <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link
-                key={action.label}
-                href={action.href}
-                className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div
-                  className={`mb-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br ${action.gradient} text-white shadow-lg`}
-                >
-                  <Icon className="size-5" />
-                </div>
-                <h3 className="text-sm font-semibold text-gray-800 group-hover:text-[#7c3aed]">
-                  {action.label}
-                </h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  {action.description}
-                </p>
-                <ArrowRight className="mt-2 size-4 text-gray-300 transition-transform group-hover:translate-x-1 group-hover:text-[#7c3aed]" />
-              </Link>
-            );
-          })}
-        </div>
+        {/* Quick action */}
+        <Link
+          href="/generate"
+          className="mb-6 flex items-center justify-between rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 p-4 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl md:p-5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-white/20">
+              <Palette className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold md:text-base">AI 绘画</h3>
+              <p className="text-xs text-white/80">用AI创造独特画作</p>
+            </div>
+          </div>
+          <ArrowRight className="size-5" />
+        </Link>
 
         {/* Featured works */}
-        <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">精选作品</h2>
-            <Link
-              href="/gallery"
-              className="flex items-center gap-1 text-sm text-[#7c3aed] hover:underline"
-            >
-              查看全部
-              <ChevronRight className="size-4" />
-            </Link>
-          </div>
-          <div className="horizontal-scroll">
-            {featuredExamples.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">
-                暂无精选作品
-              </p>
-            ) : (
-              featuredExamples.map((ex) => (
+        {featuredExamples.length > 0 && (
+          <div className="mb-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                精选作品
+              </h2>
+              <Link
+                href="/gallery"
+                className="flex items-center gap-1 text-sm text-[#7c3aed] hover:underline"
+              >
+                查看全部
+                <ChevronRight className="size-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {featuredExamples.map((ex) => (
                 <div
                   key={ex.id}
                   onClick={() => router.push("/generate")}
-                  className="group flex-none cursor-pointer"
+                  className="group cursor-pointer rounded-xl bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
                 >
-                  <div className="relative h-40 w-40 overflow-hidden rounded-2xl bg-gray-100 shadow-sm transition-all group-hover:shadow-md">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={toProxyUrl(ex.image_url)}
-                      alt={ex.prompt}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
-                      }}
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                      <p className="truncate text-xs text-white">
-                        {ex.prompt}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Latest generations */}
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">最新生成</h2>
-            <Link
-              href="/gallery"
-              className="flex items-center gap-1 text-sm text-[#7c3aed] hover:underline"
-            >
-              查看全部
-              <ChevronRight className="size-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {latestExamples.length === 0 ? (
-              <p className="col-span-full py-10 text-center text-sm text-gray-400">
-                暂无生成记录
-              </p>
-            ) : (
-              latestExamples.map((ex) => (
-                <div
-                  key={ex.id}
-                  onClick={() => router.push("/generate")}
-                  className="group cursor-pointer rounded-2xl bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                     <img
                       src={toProxyUrl(ex.image_url)}
                       alt={ex.prompt}
@@ -188,19 +91,80 @@ export default function DashboardClient({
                       }}
                     />
                   </div>
-                  <p className="mt-2 truncate text-xs text-gray-600">
-                    {ex.prompt.length > 20
-                      ? ex.prompt.slice(0, 20) + "..."
+                  <p className="mt-1.5 truncate text-xs text-gray-600 md:mt-2">
+                    {ex.prompt.length > 15
+                      ? ex.prompt.slice(0, 15) + "..."
                       : ex.prompt}
                   </p>
                   <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                     {getModelName(ex.model)}
                   </span>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Latest generations */}
+        {latestExamples.length > 0 && (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                最新生成
+              </h2>
+              <Link
+                href="/gallery"
+                className="flex items-center gap-1 text-sm text-[#7c3aed] hover:underline"
+              >
+                查看全部
+                <ChevronRight className="size-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {latestExamples.map((ex) => (
+                <div
+                  key={ex.id}
+                  onClick={() => router.push("/generate")}
+                  className="group cursor-pointer rounded-xl bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
+                >
+                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                    <img
+                      src={toProxyUrl(ex.image_url)}
+                      alt={ex.prompt}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1.5 truncate text-xs text-gray-600 md:mt-2">
+                    {ex.prompt.length > 15
+                      ? ex.prompt.slice(0, 15) + "..."
+                      : ex.prompt}
+                  </p>
+                  <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                    {getModelName(ex.model)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {featuredExamples.length === 0 && latestExamples.length === 0 && (
+          <div className="py-16 text-center">
+            <Palette className="mx-auto size-12 text-gray-300" />
+            <p className="mt-3 text-sm text-gray-400">暂无作品</p>
+            <Link
+              href="/generate"
+              className="mt-4 inline-block rounded-lg bg-[#7c3aed] px-4 py-2 text-sm font-medium text-white hover:bg-[#6d28d9]"
+            >
+              开始创作
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

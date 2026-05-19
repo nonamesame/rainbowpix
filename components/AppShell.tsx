@@ -2,8 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { TcbUser } from "@/lib/cloudbase/types";
-import Sidebar from "@/components/Sidebar";
-import RightSidebar from "@/components/RightSidebar";
+import TopNav from "@/components/TopNav";
+import BottomNav from "@/components/BottomNav";
 
 interface Props {
   user: TcbUser | null;
@@ -23,12 +23,10 @@ export default function AppShell({ user, children }: Props) {
   }
 
   return (
-    <div className="dashboard-layout">
-      <Sidebar user={user} />
-      <main className="ml-[240px] min-h-screen overflow-y-auto xl:mr-[280px]">
-        {children}
-      </main>
-      <RightSidebar />
+    <div className="min-h-screen bg-gray-50/50">
+      <TopNav user={user} />
+      <main className="pb-16 md:pb-0">{children}</main>
+      <BottomNav user={user} />
     </div>
   );
 }

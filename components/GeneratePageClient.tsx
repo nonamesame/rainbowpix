@@ -145,7 +145,7 @@ export default function GeneratePageClient({ examples }: Props) {
       }
 
       setSaved(true);
-      toast.success("已保存到示例库，其他用户可见");
+      toast.success("已保存到示例库");
     } catch {
       toast.error("保存失败");
     } finally {
@@ -154,186 +154,154 @@ export default function GeneratePageClient({ examples }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
-      <div className="px-6 py-6">
+    <div className="min-h-screen">
+      <div className="px-4 py-6 md:px-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">AI 绘画</h1>
+          <h1 className="text-xl font-bold text-gray-900 md:text-2xl">AI 绘画</h1>
           <p className="mt-1 text-sm text-gray-500">输入提示词，让AI为你创作</p>
         </div>
-        <div className="flex flex-col gap-6 lg:flex-row" style={{ gap: 24 }}>
-          {/* 左侧表单 */}
-          <div className="w-full lg:w-[60%]">
-            <Card className="rounded-2xl bg-white shadow-md">
-              <CardContent className="flex flex-col gap-5 p-6" style={{ gap: 20 }}>
-                {/* 模型选择器 */}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    模型
-                  </label>
-                  <Select value={model} onValueChange={handleModelChange}>
-                    <SelectTrigger
-                      className="w-full rounded-xl border border-gray-200"
-                      style={{ height: 44, borderRadius: 12 }}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {models.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                {/* Prompt 输入框 */}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    提示词
-                  </label>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="描述你想要的画面..."
-                    className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-                    style={{ height: 120, borderRadius: 12 }}
-                  />
-                </div>
+        <Card className="rounded-2xl bg-white shadow-md">
+          <CardContent className="flex flex-col gap-4 p-4 md:gap-5 md:p-6">
+            {/* Model selector */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                模型
+              </label>
+              <Select value={model} onValueChange={handleModelChange}>
+                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                {/* 负面词输入框（可折叠） */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setNegativeOpen(!negativeOpen)}
-                    className="mb-1.5 flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
-                  >
-                    负面词（可选）
-                    {negativeOpen ? (
-                      <ChevronUp className="size-4" />
-                    ) : (
-                      <ChevronDown className="size-4" />
-                    )}
-                  </button>
-                  {negativeOpen && (
-                    <Input
-                      value={negativePrompt}
-                      onChange={(e) => setNegativePrompt(e.target.value)}
-                      placeholder="你不想出现的元素（可选）"
-                      className="rounded-xl border-gray-200"
-                      style={{ height: 44, borderRadius: 12 }}
-                    />
-                  )}
-                </div>
+            {/* Prompt */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                提示词
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="描述你想要的画面..."
+                className="h-28 w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 md:h-32"
+              />
+            </div>
 
-                {/* 尺寸选择器 */}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    尺寸
-                  </label>
-                  <Select value={size} onValueChange={(v) => v && setSize(v)}>
-                    <SelectTrigger
-                      className="w-full rounded-xl border border-gray-200"
-                      style={{ height: 44, borderRadius: 12 }}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sizes.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            {/* Negative prompt (collapsible) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setNegativeOpen(!negativeOpen)}
+                className="mb-1.5 flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                负面词（可选）
+                {negativeOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              </button>
+              {negativeOpen && (
+                <Input
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="你不想出现的元素"
+                  className="h-11 rounded-xl border-gray-200"
+                />
+              )}
+            </div>
 
-                {/* 生成按钮 */}
-                <Button
-                  onClick={handleGenerate}
-                  disabled={loading || !prompt.trim()}
-                  className="h-12 w-full rounded-xl text-base font-semibold text-white"
-                  style={{
-                    height: 48,
-                    borderRadius: 12,
-                    backgroundColor: "#7c3aed",
-                    color: "#ffffff",
-                  }}
-                  onMouseEnter={(e) =>
-                    !loading && (e.currentTarget.style.backgroundColor = "#6d28d9")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#7c3aed")
-                  }
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      生成中...
-                    </>
-                  ) : (
-                    "生成"
-                  )}
+            {/* Size selector */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                尺寸
+              </label>
+              <Select value={size} onValueChange={(v) => v && setSize(v)}>
+                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sizes.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Generate button */}
+            <Button
+              onClick={handleGenerate}
+              disabled={loading || !prompt.trim()}
+              className="h-12 w-full rounded-xl bg-[#7c3aed] text-base font-semibold text-white hover:bg-[#6d28d9]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                "生成"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Result */}
+        {result && (
+          <Card className="mt-6 rounded-2xl bg-white shadow-md">
+            <CardContent className="p-4 md:p-6">
+              <div className="relative overflow-hidden rounded-xl">
+                <img
+                  src={toProxyUrl(result.image_url)}
+                  alt="生成结果"
+                  className="w-full rounded-xl object-cover"
+                />
+                <span className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-xs text-white/80">
+                  AI 生成
+                </span>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <Button onClick={handleDownload} variant="outline" className="flex-1">
+                  <Download className="mr-1.5 size-4" />
+                  下载
                 </Button>
-              </CardContent>
-            </Card>
+                <Button
+                  onClick={handleSave}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={saved || saving}
+                >
+                  {saving ? (
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 size-4" />
+                  )}
+                  {saved ? "已保存" : "保存"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-            {/* 生成结果 */}
-            {result && (
-              <Card className="mt-6 rounded-2xl bg-white shadow-md">
-                <CardContent className="p-6">
-                  <div className="relative overflow-hidden rounded-xl">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={toProxyUrl(result.image_url)}
-                      alt="生成结果"
-                      className="w-full rounded-xl object-cover"
-                    />
-                    <span className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-xs text-white/80">
-                      AI 生成
-                    </span>
-                  </div>
-                  <div className="mt-4 flex gap-3">
-                    <Button
-                      onClick={handleDownload}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      <Download className="mr-1.5 size-4" />
-                      下载图片
-                    </Button>
-                    <Button
-                      onClick={handleSave}
-                      variant="outline"
-                      className="flex-1"
-                      disabled={saved || saving}
-                    >
-                      {saving ? (
-                        <Loader2 className="mr-1.5 size-4 animate-spin" />
-                      ) : (
-                        <Save className="mr-1.5 size-4" />
-                      )}
-                      {saved ? "已保存" : "保存到示例库"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* 右侧示例图网格 */}
-          <div className="w-full lg:w-[40%]">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">示例图</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {/* Examples */}
+        {examples.length > 0 && (
+          <div className="mt-6">
+            <h2 className="mb-3 text-base font-semibold text-gray-900">示例图</h2>
+            <p className="mb-3 text-xs text-gray-500">点击示例可自动填充提示词</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {examples.map((ex) => (
                 <div
                   key={ex.id}
                   onClick={() => handleExampleClick(ex)}
-                  className="cursor-pointer rounded-2xl bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-                  style={{ borderRadius: 16 }}
+                  className="cursor-pointer rounded-xl bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
                 >
-                  <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                     <img
                       src={toProxyUrl(ex.image_url)}
                       alt={ex.prompt}
@@ -344,24 +312,17 @@ export default function GeneratePageClient({ examples }: Props) {
                       }}
                     />
                   </div>
-                  <p className="mt-2 truncate text-xs text-gray-600">
-                    {ex.prompt.length > 20
-                      ? ex.prompt.slice(0, 20) + "..."
-                      : ex.prompt}
+                  <p className="mt-1.5 truncate text-xs text-gray-600">
+                    {ex.prompt.length > 15 ? ex.prompt.slice(0, 15) + "..." : ex.prompt}
                   </p>
                   <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                     {models.find((m) => m.id === ex.model)?.name || ex.model}
                   </span>
                 </div>
               ))}
-              {examples.length === 0 && (
-                <p className="col-span-full py-10 text-center text-sm text-gray-400">
-                  暂无示例图
-                </p>
-              )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

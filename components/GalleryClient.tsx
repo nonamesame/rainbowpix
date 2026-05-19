@@ -89,9 +89,9 @@ export default function GalleryClient({ initialItems, total }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
-        <div className="px-6 py-6">
-          <h1 className="mb-6 text-2xl font-bold text-gray-900">我的画廊</h1>
+      <div className="min-h-screen">
+        <div className="px-4 py-6 md:px-6">
+          <h1 className="mb-6 text-xl font-bold text-gray-900 md:text-2xl">我的画廊</h1>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <ImageOff className="mb-4 size-12" />
             <p className="text-sm">还没有生成过图片</p>
@@ -108,23 +108,22 @@ export default function GalleryClient({ initialItems, total }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/30">
-      <div className="px-6 py-6">
+    <div className="min-h-screen">
+      <div className="px-4 py-6 md:px-6">
         <div className="mb-6 flex items-baseline gap-2">
-          <h1 className="text-2xl font-bold text-gray-900">我的画廊</h1>
+          <h1 className="text-xl font-bold text-gray-900 md:text-2xl">我的画廊</h1>
           <span className="text-sm text-gray-400">{total} 张</span>
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4">
           {items.map((item) => (
             <button
               key={item.id}
               onClick={() => setSelected(item)}
-              className="group cursor-pointer rounded-2xl bg-white p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+              className="group cursor-pointer rounded-xl bg-white p-2 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
             >
-              <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+              <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                 <img
                   src={toProxyUrl(item.image_url)}
                   alt={item.prompt}
@@ -135,15 +134,12 @@ export default function GalleryClient({ initialItems, total }: Props) {
                   }}
                 />
               </div>
-              <p className="mt-2 truncate text-xs text-gray-600">
-                {truncate(item.prompt, 50)}
+              <p className="mt-1.5 truncate text-xs text-gray-600 md:mt-2">
+                {truncate(item.prompt, 20)}
               </p>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1 flex items-center gap-1.5">
                 <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                   {getModelName(item.model)}
-                </span>
-                <span className="text-[10px] text-gray-400">
-                  {formatDate(item.created_at)}
                 </span>
               </div>
             </button>
