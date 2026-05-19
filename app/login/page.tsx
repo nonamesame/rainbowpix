@@ -115,7 +115,6 @@ export default function LoginPage() {
     }
     if (registerBind === "phone") {
       const phoneNum = formatPhone(regPhone);
-      console.log("Formatted phone:", phoneNum);
       if (!/^\+[1-9][0-9]{0,3}\s[0-9]{4,20}$/.test(phoneNum)) {
         toast.error("手机号格式不正确，请输入11位手机号");
         return;
@@ -131,15 +130,12 @@ export default function LoginPage() {
       let verificationRes;
       if (registerBind === "phone") {
         const phoneNum = formatPhone(regPhone);
-        console.log("Sending verification to phone:", phoneNum);
         verificationRes = await auth.getVerification({
           phone_number: phoneNum,
         });
       } else {
-        console.log("Sending verification to email:", regEmail);
         verificationRes = await auth.getVerification({ email: regEmail });
       }
-      console.log("getVerification response:", verificationRes);
       if (verificationRes?.verification_id) {
         setVerificationId(verificationRes.verification_id);
       }
@@ -176,12 +172,10 @@ export default function LoginPage() {
       const auth = getAuth();
 
       // Step 1: 验证验证码，获取 verification_token
-      console.log("Verifying code:", regCode, "verification_id:", verificationId);
       const verifyRes = await auth.verify({
         verification_code: regCode,
         verification_id: verificationId,
       });
-      console.log("verify response:", verifyRes);
 
       if (!verifyRes?.verification_token) {
         toast.error("验证码验证失败");
@@ -197,23 +191,18 @@ export default function LoginPage() {
       };
       if (registerBind === "phone") {
         const phoneNum = formatPhone(regPhone);
-        console.log("Registration phone:", phoneNum);
         params.phone_number = phoneNum;
       } else {
         params.email = regEmail;
       }
-      console.log("signUp params:", params);
       const res = await auth.signUp(params as any);
-      console.log("signUp response:", res);
       if ("error" in res && res.error) {
-        console.error("signUp error:", res.error);
         toast.error(res.error.message || "注册失败");
       } else {
         toast.success("注册成功");
         await saveCookiesAndRedirect(auth);
       }
     } catch (err: unknown) {
-      console.error("signUp exception:", err);
       toast.error(err instanceof Error ? err.message : "注册失败");
     }
     setLoading(false);
