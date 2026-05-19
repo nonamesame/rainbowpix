@@ -7,9 +7,6 @@ import { TcbUser } from "@/lib/cloudbase/types";
 import {
   Palette,
   Image as ImageIcon,
-  Sparkles,
-  Wand2,
-  Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -25,9 +22,6 @@ interface Props {
 const navItems = [
   { href: "/generate", label: "AI 绘画", icon: Palette },
   { href: "/gallery", label: "我的画廊", icon: ImageIcon },
-  { href: "#", label: "创意广场", icon: Sparkles, disabled: true },
-  { href: "#", label: "图像编辑", icon: Wand2, disabled: true },
-  { href: "#", label: "更多功能", icon: Settings, disabled: true },
 ];
 
 export default function Sidebar({ user }: Props) {
@@ -72,31 +66,18 @@ export default function Sidebar({ user }: Props) {
 
             return (
               <li key={item.label}>
-                {item.disabled ? (
-                  <span
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-400",
-                      "cursor-not-allowed"
-                    )}
-                    title="功能开发中"
-                  >
-                    <Icon className="size-5 shrink-0" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </span>
-                ) : (
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                      isActive
-                        ? "bg-purple-50 font-medium text-[#7c3aed]"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    )}
-                  >
-                    <Icon className="size-5 shrink-0" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Link>
-                )}
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-purple-50 font-medium text-[#7c3aed]"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <Icon className="size-5 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
               </li>
             );
           })}

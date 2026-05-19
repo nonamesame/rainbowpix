@@ -4,9 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Palette,
-  Image,
-  Sparkles,
-  Wand2,
   Search,
   Bell,
   ArrowRight,
@@ -37,33 +34,6 @@ const quickActions = [
     href: "/generate",
     gradient: "from-purple-500 to-indigo-600",
     bg: "bg-purple-50",
-  },
-  {
-    label: "图像编辑",
-    description: "智能编辑你的图片",
-    icon: Image,
-    href: "#",
-    gradient: "from-blue-500 to-cyan-600",
-    bg: "bg-blue-50",
-    disabled: true,
-  },
-  {
-    label: "创意广场",
-    description: "探索社区创意作品",
-    icon: Sparkles,
-    href: "#",
-    gradient: "from-amber-500 to-orange-600",
-    bg: "bg-amber-50",
-    disabled: true,
-  },
-  {
-    label: "无损放大",
-    description: "高清放大不失真",
-    icon: Wand2,
-    href: "#",
-    gradient: "from-emerald-500 to-teal-600",
-    bg: "bg-emerald-50",
-    disabled: true,
   },
 ];
 
@@ -112,29 +82,6 @@ export default function DashboardClient({
         <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {quickActions.map((action) => {
             const Icon = action.icon;
-            if (action.disabled) {
-              return (
-                <div
-                  key={action.label}
-                  className="group cursor-not-allowed rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-5 transition-all"
-                >
-                  <div
-                    className={`mb-3 flex size-10 items-center justify-center rounded-xl ${action.bg} opacity-50`}
-                  >
-                    <Icon className="size-5 text-gray-400" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-gray-400">
-                    {action.label}
-                  </h3>
-                  <p className="mt-1 text-xs text-gray-300">
-                    {action.description}
-                  </p>
-                  <span className="mt-2 inline-block rounded-full bg-gray-200 px-2 py-0.5 text-[10px] text-gray-400">
-                    开发中
-                  </span>
-                </div>
-              );
-            }
             return (
               <Link
                 key={action.label}

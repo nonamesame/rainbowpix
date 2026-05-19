@@ -3,9 +3,6 @@
 import Link from "next/link";
 import {
   Palette,
-  Image as ImageIcon,
-  Sparkles,
-  Wand2,
   Zap,
   TrendingUp,
 } from "lucide-react";
@@ -13,9 +10,6 @@ import { models } from "@/lib/models";
 
 const quickActions = [
   { label: "AI 绘画", icon: Palette, href: "/generate", color: "bg-purple-50 text-[#7c3aed]" },
-  { label: "图像编辑", icon: ImageIcon, href: "#", color: "bg-blue-50 text-blue-600", disabled: true },
-  { label: "创意广场", icon: Sparkles, href: "#", color: "bg-amber-50 text-amber-600", disabled: true },
-  { label: "无损放大", icon: Wand2, href: "#", color: "bg-emerald-50 text-emerald-600", disabled: true },
 ];
 
 
@@ -31,18 +25,6 @@ export default function RightSidebar() {
         <div className="grid grid-cols-2 gap-2">
           {quickActions.map((action) => {
             const Icon = action.icon;
-            if (action.disabled) {
-              return (
-                <div
-                  key={action.label}
-                  className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-3 text-gray-400"
-                  title="功能开发中"
-                >
-                  <Icon className="size-5" />
-                  <span className="text-xs">{action.label}</span>
-                </div>
-              );
-            }
             return (
               <Link
                 key={action.label}
