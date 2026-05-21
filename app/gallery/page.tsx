@@ -23,21 +23,16 @@ export default async function GalleryPage() {
   const { data: items } = await serverDb
     .collection("generations")
     .where({ user_id: user.uid })
-    .field(["id", "prompt", "model", "image_url", "created_at"])
+    .field(["prompt", "model", "image_url", "reference_image_url", "created_at"])
     .orderBy("created_at", "desc")
     .skip(0)
     .limit(12)
     .get();
 
-  const { total } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid })
-    .count();
-
   return (
     <GalleryClient
       initialItems={items || []}
-      total={total ?? 0}
+      total={(items?.length ?? 0) >= 12 ? -1 : (items?.length ?? 0)}
     />
   );
 }

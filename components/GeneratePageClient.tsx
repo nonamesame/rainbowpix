@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Loader2, Download, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { Loader2, Download, Save, ChevronDown, ChevronUp, ImagePlus, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { models } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
+import { useGenerateState } from "@/lib/use-generate-state";
 
 interface Example {
   id: string;
@@ -36,15 +37,85 @@ interface Props {
 }
 
 export default function GeneratePageClient({ examples }: Props) {
-  const [model, setModel] = useState("jimeng-4.0");
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
+  const {
+    model, setModel,
+    prompt, setPrompt,
+    negativePrompt, setNegativePrompt,
+    size, setSize,
+    result, setResult,
+    resultSaved, setResultSaved,
+    pending, startPending, completePending, clearPending,
+  } = useGenerateState();
+
   const [negativeOpen, setNegativeOpen] = useState(false);
-  const [size, setSize] = useState("1024x1024");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<GenerateResult | null>(null);
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referencePreview, setReferencePreview] = useState<string | null>(null);
+
+  // Restore loading state from pending generation
+  useEffect(() => {
+    if (pending && !result) {
+      // Clear stale pending (older than 2 minutes — generation should be done)
+      if (Date.now() - pending.startedAt > 120_000) {
+        clearPending();
+        return;
+      }
+      setLoading(true);
+    }
+  }, [pending, result]);
+
+  // Poll gallery API for pending generation result
+  useEffect(() => {
+    if (!pending || result) return;
+
+    const p = pending;
+    const startedAt = new Date(p.startedAt).toISOString();
+    let attempts = 0;
+    let timer: ReturnType<typeof setInterval>;
+
+    async function poll() {
+      try {
+        const res = await fetch(
+          `/api/gallery?page=1&prompt=${encodeURIComponent(p.prompt)}&since=${encodeURIComponent(startedAt)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const match = data.items?.find(
+          (item: { prompt: string; model: string }) =>
+            item.prompt === p.prompt && item.model === p.model
+        );
+        if (match) {
+          completePending({ image_url: match.image_url, generation_id: match._id });
+          setLoading(false);
+          toast.success("生成成功");
+          clearInterval(timer);
+        }
+      } catch {}
+      attempts++;
+      if (attempts >= 30) {
+        // ~60 seconds
+        clearPending();
+        setLoading(false);
+        toast.error("生成超时，请在画廊中查看结果");
+        clearInterval(timer);
+      }
+    }
+
+    timer = setInterval(poll, 2000);
+    poll(); // immediate first check
+
+    return () => clearInterval(timer);
+  }, [pending, result, completePending, clearPending]);
+
+  useEffect(() => {
+    const cookies = document.cookie.split(";");
+    const hasUser = cookies.some((c) => c.trim().startsWith("tcb_user="));
+    if (!hasUser) {
+      toast.error("请先登录", { duration: 3000 });
+      window.location.href = "/login";
+    }
+  }, []);
 
   const currentModel = models.find((m) => m.id === model);
   const sizes = currentModel?.supportedSizes || ["1024x1024"];
@@ -56,6 +127,33 @@ export default function GeneratePageClient({ examples }: Props) {
     if (m && !m.supportedSizes.includes(size)) {
       setSize(m.supportedSizes[0]);
     }
+    // 清除参考图（如果新模型不支持）
+    if (m && !m.supportsReferenceImage) {
+      setReferenceImage(null);
+      setReferencePreview(null);
+    }
+  }
+
+  function handleReferenceImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("请选择图片文件");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("图片大小不能超过10MB");
+      return;
+    }
+    setReferenceImage(file);
+    const reader = new FileReader();
+    reader.onload = () => setReferencePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function clearReferenceImage() {
+    setReferenceImage(null);
+    setReferencePreview(null);
   }
 
   function handleExampleClick(example: Example) {
@@ -71,34 +169,50 @@ export default function GeneratePageClient({ examples }: Props) {
       return;
     }
 
+    startPending({
+      prompt: prompt.trim(),
+      model,
+      size,
+      negativePrompt: negativePrompt.trim(),
+    });
     setLoading(true);
     setResult(null);
-    setSaved(false);
+    setResultSaved(false);
 
     try {
       const [w, h] = size.split("x").map(Number);
+      const formData = new FormData();
+      formData.append("prompt", prompt.trim());
+      if (negativePrompt.trim()) formData.append("negative_prompt", negativePrompt.trim());
+      formData.append("model", model);
+      formData.append("width", String(w));
+      formData.append("height", String(h));
+      if (referenceImage) formData.append("reference_image", referenceImage);
+
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          negative_prompt: negativePrompt.trim() || undefined,
-          model,
-          width: w,
-          height: h,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
 
+      if (res.status === 401) {
+        clearPending();
+        toast.error("请先登录", { duration: 3000 });
+        window.location.href = "/login";
+        return;
+      }
+
       if (!res.ok) {
+        clearPending();
         toast.error(data.error || "生成失败");
         return;
       }
 
-      setResult({ image_url: data.image_url, generation_id: data.generation_id });
+      completePending({ image_url: data.image_url, generation_id: data.generation_id });
       toast.success("生成成功");
     } catch {
+      clearPending();
       toast.error("请求失败，请重试");
     } finally {
       setLoading(false);
@@ -122,7 +236,7 @@ export default function GeneratePageClient({ examples }: Props) {
   }
 
   async function handleSave() {
-    if (!result || saved) return;
+    if (!result || resultSaved) return;
     setSaving(true);
     try {
       const [w, h] = size.split("x").map(Number);
@@ -144,7 +258,7 @@ export default function GeneratePageClient({ examples }: Props) {
         return;
       }
 
-      setSaved(true);
+      setResultSaved(true);
       toast.success("已保存到示例库");
     } catch {
       toast.error("保存失败");
@@ -175,12 +289,49 @@ export default function GeneratePageClient({ examples }: Props) {
                 <SelectContent>
                   {models.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
-                      {m.name}
+                      {m.name}{m.supportsReferenceImage ? "（支持图生图）" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Reference image upload (only for models that support it) */}
+            {currentModel?.supportsReferenceImage && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  参考图（可选）
+                </label>
+                {referencePreview ? (
+                  <div className="relative inline-block">
+                    <img
+                      src={referencePreview}
+                      alt="参考图预览"
+                      className="h-32 w-32 rounded-xl border border-gray-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={clearReferenceImage}
+                      className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 p-6 transition-colors hover:border-purple-300 hover:bg-purple-50">
+                    <ImagePlus className="mb-2 size-8 text-gray-400" />
+                    <span className="text-sm text-gray-500">点击或拖拽上传参考图</span>
+                    <span className="mt-1 text-xs text-gray-400">支持 JPG、PNG，最大 10MB</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReferenceImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
 
             {/* Prompt */}
             <div>
@@ -256,15 +407,12 @@ export default function GeneratePageClient({ examples }: Props) {
         {result && (
           <Card className="mt-6 rounded-2xl bg-white shadow-md">
             <CardContent className="p-4 md:p-6">
-              <div className="relative overflow-hidden rounded-xl">
+              <div className="overflow-hidden rounded-xl">
                 <img
                   src={toProxyUrl(result.image_url)}
                   alt="生成结果"
                   className="w-full rounded-xl object-cover"
                 />
-                <span className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-xs text-white/80">
-                  AI 生成
-                </span>
               </div>
               <div className="mt-4 flex gap-3">
                 <Button onClick={handleDownload} variant="outline" className="flex-1">
@@ -275,14 +423,14 @@ export default function GeneratePageClient({ examples }: Props) {
                   onClick={handleSave}
                   variant="outline"
                   className="flex-1"
-                  disabled={saved || saving}
+                  disabled={resultSaved || saving}
                 >
                   {saving ? (
                     <Loader2 className="mr-1.5 size-4 animate-spin" />
                   ) : (
                     <Save className="mr-1.5 size-4" />
                   )}
-                  {saved ? "已保存" : "保存"}
+                  {resultSaved ? "已保存" : "保存"}
                 </Button>
               </div>
             </CardContent>

@@ -115,13 +115,17 @@ export async function generateImage(
   negativePrompt: string,
   width: number,
   height: number,
+  referenceImageBase64?: string,
+  reqKey?: string,
 ): Promise<string> {
   if (!VOLC_ACCESS_KEY || !VOLC_SECRET_KEY) {
     throw new Error('缺少环境变量 VOLC_ACCESS_KEY / VOLC_SECRET_KEY')
   }
 
-  const body = {
-    req_key: 'jimeng_high_aes_general_v40',
+  const isImg2Img = !!referenceImageBase64
+
+  const body: Record<string, any> = {
+    req_key: reqKey || (isImg2Img ? 'jimeng_i2i_v40' : 'jimeng_t2i_v40'),
     prompt,
     negative_prompt: negativePrompt,
     width,
@@ -134,12 +138,22 @@ export async function generateImage(
     logo_info: { add_logo: false },
   }
 
+  if (isImg2Img) {
+    // 图生图：即梦API使用image_url参数
+    body.image_url = `data:image/png;base64,${referenceImageBase64}`
+    body.img_guidance_strength = 0.5
+    body.image_num = 1
+    body.model_version = 'general_v2.1_L'
+  }
+
   const bodyStr = JSON.stringify(body)
   const headers = signRequest(bodyStr)
 
   const url = `https://${HOST}/?Action=CVProcess&Version=2022-08-31`
 
   const { data } = await axios.post(url, bodyStr, { headers, timeout: 120_000 })
+
+  console.log('即梦 API response:', JSON.stringify(data, null, 2))
 
   if (data.code !== 10000) {
     throw new Error(`即梦 API 错误 [${data.code}]: ${data.message}`)

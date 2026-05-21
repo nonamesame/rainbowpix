@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Download, Loader2, ImageOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { Download, Trash2, Loader2, ImageOff, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,10 +16,11 @@ import { models } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 
 interface Generation {
-  id: string;
+  _id: string;
   prompt: string;
   model: string;
   image_url: string;
+  reference_image_url?: string;
   created_at: string;
 }
 
@@ -49,13 +50,98 @@ function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
 }
 
-export default function GalleryClient({ initialItems, total }: Props) {
+export default function GalleryClient({ initialItems, total: initialTotal }: Props) {
   const [items, setItems] = useState<Generation[]>(initialItems);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(initialTotal);
+
+  // Fetch fresh data on mount to bypass Next.js client-side router cache
+  useEffect(() => {
+    fetch("/api/gallery?page=1")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.items) setItems(d.items);
+        if (d.total != null) setTotal(d.total);
+      })
+      .catch(() => {});
+  }, []);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<Generation | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showRefImage, setShowRefImage] = useState(false);
 
-  const hasMore = items.length < total;
+  // Fetch total count client-side (non-blocking)
+  useEffect(() => {
+    if (initialTotal >= 0) return;
+    fetch("/api/gallery?page=1")
+      .then((r) => r.json())
+      .then((d) => setTotal(d.total ?? 0))
+      .catch(() => setTotal(items.length));
+  }, [initialTotal, items.length]);
+
+  // Poll for new generation while pending on the generate page
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    function checkPending() {
+      try {
+        const raw = localStorage.getItem("rainbowpix_generate_state");
+        if (!raw) return false;
+        const state = JSON.parse(raw);
+        if (!state.pending || state.result) return false;
+        return state.pending;
+      } catch {
+        return false;
+      }
+    }
+
+    const pending = checkPending();
+    if (!pending) return;
+
+    const since = new Date(pending.startedAt).toISOString();
+    let done = false;
+
+    async function poll() {
+      if (done) return;
+      try {
+        const res = await fetch(
+          `/api/gallery?page=1&prompt=${encodeURIComponent(pending.prompt)}&since=${encodeURIComponent(since)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const match = data.items?.find(
+          (item: { prompt: string; model: string }) =>
+            item.prompt === pending.prompt && item.model === pending.model
+        );
+        if (match && !items.some((i) => i._id === match._id)) {
+          setItems((prev) => [match, ...prev]);
+          setTotal((t) => (t < 0 ? t : t + 1));
+          toast.success("新图片已生成");
+          // Clear pending from localStorage
+          try {
+            const raw = localStorage.getItem("rainbowpix_generate_state");
+            if (raw) {
+              const state = JSON.parse(raw);
+              state.pending = null;
+              localStorage.setItem("rainbowpix_generate_state", JSON.stringify(state));
+            }
+          } catch {}
+          done = true;
+          if (timer) clearInterval(timer);
+        }
+      } catch {}
+    }
+
+    timer = setInterval(poll, 2000);
+    poll();
+
+    return () => {
+      done = true;
+      if (timer) clearInterval(timer);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasMore = total < 0 ? false : items.length < total;
 
   async function loadMore() {
     setLoadingMore(true);
@@ -79,11 +165,30 @@ export default function GalleryClient({ initialItems, total }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `generated-${item.id.slice(0, 8)}.png`;
+      a.download = `generated-${item._id.slice(0, 8)}.png`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
       toast.error("下载失败");
+    }
+  }
+
+  async function handleDelete(item: Generation, skipConfirm = false) {
+    if (!skipConfirm && !confirm("确定要删除这张图片吗？")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/gallery/${item._id}`, { method: "DELETE" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `删除失败 (${res.status})`);
+      }
+      setItems((prev) => prev.filter((i) => i._id !== item._id));
+      setSelected(null);
+      toast.success("删除成功");
+    } catch (e: any) {
+      toast.error(e?.message || "删除失败，请重试");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -112,18 +217,21 @@ export default function GalleryClient({ initialItems, total }: Props) {
       <div className="px-4 py-6 md:px-6">
         <div className="mb-6 flex items-baseline gap-2">
           <h1 className="text-xl font-bold text-gray-900 md:text-2xl">我的画廊</h1>
-          <span className="text-sm text-gray-400">{total} 张</span>
+          <span className="text-sm text-gray-400">{total < 0 ? "加载中..." : `${total} 张`}</span>
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4">
           {items.map((item) => (
-            <button
-              key={item.id}
+            <div
+              key={item._id}
+              role="button"
+              tabIndex={0}
               onClick={() => setSelected(item)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(item); } }}
               className="group cursor-pointer rounded-xl bg-white p-2 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
             >
-              <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+              <div className="relative aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                 <img
                   src={toProxyUrl(item.image_url)}
                   alt={item.prompt}
@@ -133,6 +241,16 @@ export default function GalleryClient({ initialItems, total }: Props) {
                       "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(item);
+                  }}
+                  className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
               <p className="mt-1.5 truncate text-xs text-gray-600 md:mt-2">
                 {truncate(item.prompt, 20)}
@@ -142,7 +260,7 @@ export default function GalleryClient({ initialItems, total }: Props) {
                   {getModelName(item.model)}
                 </span>
               </div>
-            </button>
+            </div>
           ))}
         </div>
 
@@ -169,7 +287,7 @@ export default function GalleryClient({ initialItems, total }: Props) {
       </div>
 
       {/* Detail dialog */}
-      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setShowRefImage(false); } }}>
         <DialogContent className="sm:max-w-lg">
           {selected && (
             <>
@@ -196,6 +314,19 @@ export default function GalleryClient({ initialItems, total }: Props) {
                   <span className="font-medium text-gray-700">提示词：</span>
                   <span className="text-gray-600">{selected.prompt}</span>
                 </div>
+                {selected.reference_image_url && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-700">参考图：</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowRefImage(true)}
+                      className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                    >
+                      <Eye className="size-3.5" />
+                      查看参考图
+                    </button>
+                  </div>
+                )}
                 <div>
                   <span className="font-medium text-gray-700">模型：</span>
                   <span className="text-gray-600">{getModelName(selected.model)}</span>
@@ -203,12 +334,43 @@ export default function GalleryClient({ initialItems, total }: Props) {
               </div>
 
               <DialogFooter>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDelete(selected, true)}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-1.5 size-4" />
+                  )}
+                  删除
+                </Button>
                 <Button onClick={() => handleDownload(selected)}>
                   <Download className="mr-1.5 size-4" />
                   下载图片
                 </Button>
               </DialogFooter>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reference image dialog */}
+      <Dialog open={showRefImage} onOpenChange={(open) => { if (!open) setShowRefImage(false); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>参考图</DialogTitle>
+          </DialogHeader>
+          {selected?.reference_image_url && (
+            <div className="overflow-hidden rounded-xl bg-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={toProxyUrl(selected.reference_image_url)}
+                alt="参考图"
+                className="w-full object-contain"
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

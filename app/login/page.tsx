@@ -24,6 +24,34 @@ function formatPhone(phone: string): string {
   return `+86 ${cleaned}`;
 }
 
+function getAuthErrorMessage(err: unknown): string {
+  if (!err) return "登录失败，请重试";
+  const error = err as Record<string, unknown>;
+  const code = String(error.code || "");
+  const desc = String(error.error_description || error.message || "");
+
+  // 按 code 匹配
+  if (/INVALID_USERNAME_OR_PASSWORD|INVALID_CREDENTIALS|WRONG_PASSWORD/i.test(code)) {
+    return "账号或密码错误";
+  }
+  if (/USER_NOT_FOUND/i.test(code)) {
+    return "用户不存在";
+  }
+  if (/USER_STATUS_ABNORMAL|ACCOUNT_DISABLED/i.test(code)) {
+    return "账号状态异常，请联系客服";
+  }
+  if (/PROVIDER_NOT_ENABLED/i.test(code)) {
+    return "该登录方式未启用";
+  }
+  if (/SERVICE_ERROR|INTERNAL/i.test(code)) {
+    return "服务暂时不可用，请稍后重试";
+  }
+
+  // 兜底：用 error_description 或 message
+  if (desc) return desc;
+  return "登录失败，请重试";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [state, setState] = useState<PageState>("login");
@@ -76,7 +104,8 @@ export default function LoginPage() {
       document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
     }
     toast.success("登录成功");
-    router.push("/generate");
+    // 使用完整页面导航确保cookie被发送到服务器
+    window.location.href = "/generate";
   };
 
   // ========== 登录 ==========
@@ -97,12 +126,12 @@ export default function LoginPage() {
         password: loginPassword,
       } as any);
       if ("error" in res && res.error) {
-        toast.error(res.error.message || "登录失败");
+        toast.error(getAuthErrorMessage(res.error));
       } else {
         await saveCookiesAndRedirect(auth);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "登录失败");
+      toast.error(getAuthErrorMessage(err));
     }
     setLoading(false);
   };
@@ -115,6 +144,7 @@ export default function LoginPage() {
     }
     if (registerBind === "phone") {
       const phoneNum = formatPhone(regPhone);
+      console.log("Formatted phone:", phoneNum);
       if (!/^\+[1-9][0-9]{0,3}\s[0-9]{4,20}$/.test(phoneNum)) {
         toast.error("手机号格式不正确，请输入11位手机号");
         return;
@@ -130,12 +160,15 @@ export default function LoginPage() {
       let verificationRes;
       if (registerBind === "phone") {
         const phoneNum = formatPhone(regPhone);
+        console.log("Sending verification to phone:", phoneNum);
         verificationRes = await auth.getVerification({
           phone_number: phoneNum,
         });
       } else {
+        console.log("Sending verification to email:", regEmail);
         verificationRes = await auth.getVerification({ email: regEmail });
       }
+      console.log("getVerification response:", verificationRes);
       if (verificationRes?.verification_id) {
         setVerificationId(verificationRes.verification_id);
       }
@@ -143,7 +176,7 @@ export default function LoginPage() {
       setCodeSent(true);
       startCountdown();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "发送验证码失败");
+      toast.error(getAuthErrorMessage(err));
     }
     setLoading(false);
   };
@@ -172,10 +205,12 @@ export default function LoginPage() {
       const auth = getAuth();
 
       // Step 1: 验证验证码，获取 verification_token
+      console.log("Verifying code:", regCode, "verification_id:", verificationId);
       const verifyRes = await auth.verify({
         verification_code: regCode,
         verification_id: verificationId,
       });
+      console.log("verify response:", verifyRes);
 
       if (!verifyRes?.verification_token) {
         toast.error("验证码验证失败");
@@ -191,19 +226,24 @@ export default function LoginPage() {
       };
       if (registerBind === "phone") {
         const phoneNum = formatPhone(regPhone);
+        console.log("Registration phone:", phoneNum);
         params.phone_number = phoneNum;
       } else {
         params.email = regEmail;
       }
+      console.log("signUp params:", params);
       const res = await auth.signUp(params as any);
+      console.log("signUp response:", res);
       if ("error" in res && res.error) {
-        toast.error(res.error.message || "注册失败");
+        console.error("signUp error:", res.error);
+        toast.error(getAuthErrorMessage(res.error));
       } else {
         toast.success("注册成功");
         await saveCookiesAndRedirect(auth);
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "注册失败");
+      console.error("signUp exception:", err);
+      toast.error(getAuthErrorMessage(err));
     }
     setLoading(false);
   };

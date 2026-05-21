@@ -10,11 +10,29 @@ export async function downloadAndUpload(
 
   const cloudPath = `generated-images/${fileName}`;
 
-  await app.uploadFile({
+  const uploadRes = await app.uploadFile({
     cloudPath,
     fileContent: buffer,
   });
+  const fileID = uploadRes.fileID;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  return `${siteUrl}/api/images/${cloudPath}`;
+  return `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
+}
+
+export async function uploadBase64(
+  base64: string,
+  fileName: string,
+): Promise<string> {
+  const buffer = Buffer.from(base64, "base64");
+  const cloudPath = `reference-images/${fileName}`;
+
+  const uploadRes = await app.uploadFile({
+    cloudPath,
+    fileContent: buffer,
+  });
+  const fileID = uploadRes.fileID;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
 }

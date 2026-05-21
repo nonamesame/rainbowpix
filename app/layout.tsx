@@ -5,6 +5,9 @@ import { cookies } from "next/headers";
 import AppShell from "@/components/AppShell";
 import "./globals.css";
 
+// 强制动态渲染，确保每次导航时重新读取cookie
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
