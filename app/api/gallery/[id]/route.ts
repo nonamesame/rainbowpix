@@ -23,7 +23,7 @@ export async function GET(
     const { data } = await serverDb
       .collection("generations")
       .where({ _id: id, user_id: user.uid })
-      .field(["prompt", "model", "image_url", "reference_image_url", "created_at"])
+      .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "published", "watermark_enabled", "likes_count"])
       .get();
 
     if (!data || data.length === 0) {
@@ -55,6 +55,21 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // Clean up associated likes (best-effort, collection may not exist)
+    try {
+      const { data: likes } = await serverDb
+        .collection("gallery_likes")
+        .where({ generation_id: id })
+        .get();
+      if (likes) {
+        for (const like of likes) {
+          await serverDb.collection("gallery_likes").doc(like._id).delete();
+        }
+      }
+    } catch {
+      // gallery_likes collection may not exist yet
+    }
 
     await serverDb.collection("generations").doc(id).delete();
 

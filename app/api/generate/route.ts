@@ -5,6 +5,7 @@ import { checkPrompt } from "@/lib/security";
 import { downloadAndUpload, uploadBase64 } from "@/lib/upload";
 import { generateImage as generateJimeng } from "@/lib/jimeng";
 import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
+import { getPixelSize } from "@/lib/models";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,11 +25,10 @@ export async function POST(request: NextRequest) {
     // 2. 解析 FormData
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
-    const negative_prompt = formData.get("negative_prompt") as string || "";
     const model = (formData.get("model") as string) || "jimeng-4.0";
-    const width = Number(formData.get("width")) || 1024;
-    const height = Number(formData.get("height")) || 1024;
-    const referenceImageFile = formData.get("reference_image") as File | null;
+    const aspectRatio = (formData.get("aspect_ratio") as string) || "1:1";
+    const { w: width, h: height } = getPixelSize(aspectRatio, model);
+    const referenceImageFiles = formData.getAll("reference_image") as File[];
 
     if (!prompt) {
       return Response.json({ error: "prompt 为必填参数" }, { status: 400 });
@@ -47,16 +47,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. 处理参考图片（如果有）
-    let referenceImageBase64: string | undefined;
-    let referenceImageUrl: string | undefined;
-    if (referenceImageFile && referenceImageFile.size > 0) {
-      const buffer = Buffer.from(await referenceImageFile.arrayBuffer());
-      referenceImageBase64 = buffer.toString("base64");
-      // 异步上传参考图到存储
-      referenceImageUrl = await uploadBase64(
-        referenceImageBase64,
-        `ref-${Date.now()}.png`,
-      );
+    const referenceImagesBase64: string[] = [];
+    const referenceImageUrls: string[] = [];
+    for (const file of referenceImageFiles) {
+      if (file && file.size > 0) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const base64 = buffer.toString("base64");
+        referenceImagesBase64.push(base64);
+        const url = await uploadBase64(base64, `ref-${Date.now()}-${referenceImageUrls.length}.png`);
+        referenceImageUrls.push(url);
+      }
     }
 
     // 5. 根据模型路由调用生成函数
@@ -64,15 +64,16 @@ export async function POST(request: NextRequest) {
 
     switch (model) {
       case "jimeng-3.0": {
-        imageUrl = await generateJimeng(prompt, negative_prompt, width, height, undefined, "jimeng_t2i_v30");
+        imageUrl = await generateJimeng(prompt, "", width, height, undefined, "jimeng_t2i_v30");
         break;
       }
       case "jimeng-4.0": {
-        imageUrl = await generateJimeng(prompt, negative_prompt, width, height, referenceImageBase64);
+        imageUrl = await generateJimeng(prompt, "", width, height, referenceImagesBase64[0]);
         break;
       }
       case "gpt-image-2": {
-        imageUrl = await generateHMVI(prompt, `${width}x${height}`, referenceImageBase64);
+        console.log("[generate] gpt-image-2 prompt:", prompt, "size:", `${width}x${height}`, "refCount:", referenceImagesBase64.length);
+        imageUrl = await generateHMVI(prompt, `${width}x${height}`, referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined);
         break;
       }
       default:
@@ -85,8 +86,11 @@ export async function POST(request: NextRequest) {
       prompt,
       model,
       image_url: imageUrl,
-      reference_image_url: referenceImageUrl || null,
+      reference_image_url: referenceImageUrls.length > 0 ? JSON.stringify(referenceImageUrls) : null,
       created_at: new Date().toISOString(),
+      published: false,
+      watermark_enabled: false,
+      likes_count: 0,
     });
     const id = addResult.id!;
 

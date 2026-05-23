@@ -46,7 +46,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <AppShell user={user}>{children}</AppShell>
+        <AppShell key={user?.uid || "logged-out"} user={user}>{children}</AppShell>
         <Toaster position="top-center" />
       </body>
     </html>

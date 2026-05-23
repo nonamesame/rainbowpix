@@ -6,7 +6,8 @@ export async function middleware(request: NextRequest) {
   if (
     !accessToken &&
     (request.nextUrl.pathname.startsWith("/generate") ||
-      request.nextUrl.pathname.startsWith("/gallery"))
+      request.nextUrl.pathname.startsWith("/gallery") ||
+      request.nextUrl.pathname.startsWith("/admin"))
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -17,5 +18,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/generate/:path*", "/gallery/:path*"],
+  matcher: ["/generate/:path*", "/gallery/:path*", "/admin/:path*"],
 };

@@ -7,18 +7,29 @@ import { TcbUser } from "@/lib/cloudbase/types";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuth } from "@/lib/cloudbase/client";
+import NotificationBell from "./NotificationBell";
+import type { Notification } from "@/lib/notifications";
 
 interface Props {
   user: TcbUser | null;
+  unreadCount: number;
+  notifications: Notification[];
+  notificationsLoading: boolean;
+  fetchNotifications: () => void;
+  markRead: (ids: string[]) => void;
+  markAllRead: () => void;
+  deleteNotification: (id: string) => void;
 }
 
 const navItems = [
-  { href: "/", label: "首页" },
+  { href: "/", label: "灵感大厅" },
   { href: "/generate", label: "AI绘画" },
   { href: "/gallery", label: "画廊" },
 ];
 
-export default function TopNav({ user }: Props) {
+export default function TopNav({
+  user, unreadCount, notifications, notificationsLoading, fetchNotifications, markRead, markAllRead, deleteNotification,
+}: Props) {
   const pathname = usePathname();
 
   const handleLogout = async () => {
@@ -26,11 +37,13 @@ export default function TopNav({ user }: Props) {
     await auth.signOut();
     document.cookie = "tcb_access_token=; path=/; max-age=0";
     document.cookie = "tcb_user=; path=/; max-age=0";
+    localStorage.clear();
+    sessionStorage.clear();
     window.location.href = "/login";
   };
 
   return (
-    <nav className="hidden md:flex h-14 items-center justify-between border-b bg-white/80 backdrop-blur-md px-6">
+    <nav className="hidden md:flex h-14 items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 relative z-50">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5">
         <Image src="/logo.png" alt="Logo" width={28} height={28} />
@@ -59,11 +72,21 @@ export default function TopNav({ user }: Props) {
       <div className="flex items-center gap-3">
         {user ? (
           <div className="flex items-center gap-2">
+            <NotificationBell
+              user={user}
+              unreadCount={unreadCount}
+              notifications={notifications}
+              loading={notificationsLoading}
+              fetchNotifications={fetchNotifications}
+              markRead={markRead}
+              markAllRead={markAllRead}
+              deleteNotification={deleteNotification}
+            />
             <div className="flex size-8 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-[#7c3aed]">
-              {user.email?.charAt(0).toUpperCase() || user.phone?.charAt(0) || "U"}
+              {user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || user.phone?.charAt(0) || "U"}
             </div>
             <span className="text-sm text-gray-600 max-w-[100px] truncate">
-              {user.email || user.phone || "用户"}
+              {user.username || user.email || user.phone || "用户"}
             </span>
             <button
               onClick={handleLogout}

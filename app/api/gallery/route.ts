@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const { data } = await serverDb
     .collection("generations")
     .where(whereClause)
-    .field(["prompt", "model", "image_url", "reference_image_url", "created_at"])
+    .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "published", "watermark_enabled", "likes_count"])
     .orderBy("created_at", "desc")
     .skip(from)
     .limit(pageSize)

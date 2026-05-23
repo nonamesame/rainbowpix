@@ -8,16 +8,17 @@ import { TcbUser } from "@/lib/cloudbase/types";
 
 interface Props {
   user: TcbUser | null;
+  unreadCount?: number;
 }
 
 const navItems = [
-  { href: "/", label: "首页", icon: Home },
+  { href: "/", label: "灵感大厅", icon: Home },
   { href: "/generate", label: "AI绘画", icon: Palette },
   { href: "/gallery", label: "画廊", icon: ImageIcon, requireAuth: true },
   { href: "/login", label: "我的", icon: User },
 ];
 
-export default function BottomNav({ user }: Props) {
+export default function BottomNav({ user, unreadCount }: Props) {
   const pathname = usePathname();
 
   return (
@@ -42,7 +43,14 @@ export default function BottomNav({ user }: Props) {
                 : "text-gray-500 hover:text-gray-700"
             )}
           >
-            <Icon className="size-5" />
+            <div className="relative">
+              <Icon className="size-5" />
+              {item.href === "/login" && unreadCount && unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
+                  {unreadCount > 99 ? "99" : unreadCount}
+                </span>
+              )}
+            </div>
             <span className="font-medium">{item.label}</span>
           </Link>
         );

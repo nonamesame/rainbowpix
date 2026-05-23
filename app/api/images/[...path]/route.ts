@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import app from "@/lib/cloudbase/server";
-import fs from "fs";
-import os from "os";
-import path from "path";
+import axios from "axios";
 
 export async function GET(
   _request: NextRequest,
@@ -11,26 +9,34 @@ export async function GET(
   const { path: segments } = await params;
   const fileID = decodeURIComponent(segments.join("/"));
 
+  console.log("[image-proxy] fileID:", fileID);
+
   if (!fileID) {
     return Response.json({ error: "Invalid path" }, { status: 400 });
   }
 
-  const tmpDir = path.join(os.tmpdir(), "tcb-images");
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const tmpFile = path.join(tmpDir, fileID.replace(/[^a-zA-Z0-9._-]/g, "_"));
-
   try {
-    await app.downloadFile({
-      fileID,
-      tempFilePath: tmpFile,
-    });
+    // Get a temporary download URL from CloudBase
+    const urlRes = await app.getTempFileURL({ fileList: [fileID] });
+    const fileList = (urlRes as any).fileList || [];
+    const item = fileList[0];
 
-    const buffer = fs.readFileSync(tmpFile);
-    fs.unlinkSync(tmpFile);
+    if (!item || item.code !== "SUCCESS" || !item.download_url) {
+      console.error("[image-proxy] getTempFileURL failed:", JSON.stringify(item));
+      return Response.json({ error: "Image not found" }, { status: 404 });
+    }
+
+    console.log("[image-proxy] temp URL obtained, downloading...");
+
+    // Download image content via temp URL using axios
+    const imgResponse = await axios.get(item.download_url, { responseType: "arraybuffer" });
+    const buffer = Buffer.from(imgResponse.data);
 
     const ext = fileID.split(".").pop()?.toLowerCase() || "png";
     const contentType =
       { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" }[ext] || "image/png";
+
+    console.log("[image-proxy] success, size:", buffer.length);
 
     return new Response(buffer, {
       headers: {
@@ -39,8 +45,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    const tmpExists = fs.existsSync(tmpFile);
-    if (tmpExists) fs.unlinkSync(tmpFile);
     console.error("[image-proxy] error:", error);
     return Response.json({ error: "Image not found" }, { status: 404 });
   }

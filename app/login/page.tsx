@@ -43,6 +43,9 @@ function getAuthErrorMessage(err: unknown): string {
   if (/PROVIDER_NOT_ENABLED/i.test(code)) {
     return "该登录方式未启用";
   }
+  if (/USER_ALREADY_EXISTS|ALREADY_EXIST|CONFLICT/i.test(code)) {
+    return "该手机号/邮箱已注册，请直接登录";
+  }
   if (/SERVICE_ERROR|INTERNAL/i.test(code)) {
     return "服务暂时不可用，请稍后重试";
   }
@@ -98,14 +101,17 @@ export default function LoginPage() {
           uid: userInfo.uid,
           email: userInfo.email,
           phone: userInfo.phoneNumber,
+          username: userInfo.username,
         })
       );
       document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
     }
     toast.success("登录成功");
-    // 使用完整页面导航确保cookie被发送到服务器
-    window.location.href = "/generate";
+    // 延迟导航，确保浏览器将cookie写入HTTP请求头
+    setTimeout(() => {
+      window.location.href = "/generate";
+    }, 50);
   };
 
   // ========== 登录 ==========
@@ -300,21 +306,47 @@ export default function LoginPage() {
 
                 <form onSubmit={handleLogin} className="flex flex-col gap-5">
                   {loginMode === "phone" ? (
-                    <Input
-                      type="tel"
-                      placeholder="请输入手机号"
-                      value={loginPhone}
-                      onChange={(e) => setLoginPhone(e.target.value)}
-                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
-                    />
+                    <div className="group relative">
+                      <Input
+                        type="tel"
+                        placeholder="请输入手机号"
+                        value={loginPhone}
+                        onChange={(e) => setLoginPhone(e.target.value)}
+                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30 pr-9"
+                      />
+                      {loginPhone && (
+                        <button
+                          type="button"
+                          onClick={() => setLoginPhone("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100"
+                        >
+                          <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M2 2l8 8M10 2l-8 8" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   ) : (
-                    <Input
-                      type="email"
-                      placeholder="请输入邮箱"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
-                    />
+                    <div className="group relative">
+                      <Input
+                        type="email"
+                        placeholder="请输入邮箱"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30 pr-9"
+                      />
+                      {loginEmail && (
+                        <button
+                          type="button"
+                          onClick={() => setLoginEmail("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100"
+                        >
+                          <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M2 2l8 8M10 2l-8 8" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   )}
                   <Input
                     type="password"

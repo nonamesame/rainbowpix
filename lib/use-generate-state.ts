@@ -13,14 +13,12 @@ interface PendingGeneration {
   prompt: string;
   model: string;
   size: string;
-  negativePrompt: string;
   startedAt: number;
 }
 
 interface PersistedState {
   model: string;
   prompt: string;
-  negativePrompt: string;
   size: string;
   result: GenerateResult | null;
   saved: boolean;
@@ -30,8 +28,7 @@ interface PersistedState {
 const DEFAULTS: PersistedState = {
   model: "jimeng-4.0",
   prompt: "",
-  negativePrompt: "",
-  size: "1024x1024",
+  size: "1:1",
   result: null,
   saved: false,
   pending: null,
@@ -58,7 +55,6 @@ export function useGenerateState() {
 
   const [model, setModel] = useState(DEFAULTS.model);
   const [prompt, setPrompt] = useState(DEFAULTS.prompt);
-  const [negativePrompt, setNegativePrompt] = useState(DEFAULTS.negativePrompt);
   const [size, setSize] = useState(DEFAULTS.size);
   const [result, setResult] = useState<GenerateResult | null>(DEFAULTS.result);
   const [resultSaved, setResultSaved] = useState(DEFAULTS.saved);
@@ -70,7 +66,6 @@ export function useGenerateState() {
     if (saved) {
       if (saved.model) setModel(saved.model);
       if (saved.prompt) setPrompt(saved.prompt);
-      if (saved.negativePrompt) setNegativePrompt(saved.negativePrompt);
       if (saved.size) setSize(saved.size);
       if (saved.result) setResult(saved.result);
       if (saved.saved) setResultSaved(saved.saved);
@@ -80,17 +75,17 @@ export function useGenerateState() {
   }, []);
 
   // Ref to track current state for synchronous saves
-  const stateRef = useRef({ model, prompt, negativePrompt, size, result, saved: resultSaved, pending });
-  stateRef.current = { model, prompt, negativePrompt, size, result, saved: resultSaved, pending };
+  const stateRef = useRef({ model, prompt, size, result, saved: resultSaved, pending });
+  stateRef.current = { model, prompt, size, result, saved: resultSaved, pending };
 
   // Persist on every state change (backup for normal edits)
   useEffect(() => {
     if (!hydrated) return;
     save(stateRef.current);
-  }, [hydrated, model, prompt, negativePrompt, size, result, resultSaved, pending]);
+  }, [hydrated, model, prompt, size, result, resultSaved, pending]);
 
   // Start pending generation — saves synchronously so navigation can't lose it
-  const startPending = useCallback((opts: { prompt: string; model: string; size: string; negativePrompt: string }) => {
+  const startPending = useCallback((opts: { prompt: string; model: string; size: string }) => {
     const p: PendingGeneration = { ...opts, startedAt: Date.now() };
     setPending(p);
     setResult(null);
@@ -114,7 +109,6 @@ export function useGenerateState() {
   const reset = useCallback(() => {
     setModel(DEFAULTS.model);
     setPrompt(DEFAULTS.prompt);
-    setNegativePrompt(DEFAULTS.negativePrompt);
     setSize(DEFAULTS.size);
     setResult(null);
     setResultSaved(false);
@@ -125,7 +119,6 @@ export function useGenerateState() {
   return {
     model, setModel,
     prompt, setPrompt,
-    negativePrompt, setNegativePrompt,
     size, setSize,
     result, setResult,
     resultSaved, setResultSaved,

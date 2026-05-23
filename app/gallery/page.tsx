@@ -23,7 +23,7 @@ export default async function GalleryPage() {
   const { data: items } = await serverDb
     .collection("generations")
     .where({ user_id: user.uid })
-    .field(["prompt", "model", "image_url", "reference_image_url", "created_at"])
+    .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "published", "watermark_enabled", "likes_count"])
     .orderBy("created_at", "desc")
     .skip(0)
     .limit(12)
@@ -33,6 +33,7 @@ export default async function GalleryPage() {
     <GalleryClient
       initialItems={items || []}
       total={(items?.length ?? 0) >= 12 ? -1 : (items?.length ?? 0)}
+      user={user}
     />
   );
 }
