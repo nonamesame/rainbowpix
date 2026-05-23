@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       .collection("generations")
       .where({ user_id: "admin" })
       .field([
-        "_id", "prompt", "model", "image_url", "title",
+        "_id", "prompt", "model", "image_url", "title", "username",
         "created_at", "likes_count", "published",
       ])
       .orderBy("created_at", "desc")
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     const prompt = formData.get("prompt") as string | null;
     const title = (formData.get("title") as string) || "";
     const model = (formData.get("model") as string) || "管理员上传";
+    const author = (formData.get("author") as string) || "";
 
     if (!file || !prompt) {
       return Response.json({ error: "请选择图片并填写提示词" }, { status: 400 });
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Create generation record
     const { id } = await serverDb.collection("generations").add({
       user_id: "admin",
-      username: "管理员",
+      username: author || "匿名用户",
       prompt: prompt.trim(),
       model,
       title: title.trim() || null,

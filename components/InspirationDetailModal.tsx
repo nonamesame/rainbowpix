@@ -100,6 +100,10 @@ export default function InspirationDetailModal({
       prompt: item.prompt,
       model: item.model,
     });
+    const refImages = parseReferenceImages(item.reference_image_url);
+    if (refImages.length > 0) {
+      params.set("ref", JSON.stringify(refImages));
+    }
     window.location.href = `/generate?${params.toString()}`;
   }
 

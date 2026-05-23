@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Download, Trash2, Loader2, ImageOff, Eye } from "lucide-react";
+import { Download, Trash2, Loader2, ImageOff, Eye, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,11 +22,13 @@ interface Generation {
   image_url: string;
   reference_image_url?: string;
   created_at: string;
+  published?: boolean;
 }
 
 interface Props {
   initialItems: Generation[];
   total: number;
+  user?: { uid: string; email?: string };
 }
 
 const PAGE_SIZE = 12;
@@ -69,6 +71,10 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
   const [selected, setSelected] = useState<Generation | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showRefImage, setShowRefImage] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [publishTitle, setPublishTitle] = useState("");
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
 
   // Fetch total count client-side (non-blocking)
   useEffect(() => {
@@ -192,6 +198,67 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
     }
   }
 
+  function openPublishDialog(item: Generation) {
+    setPublishTitle("");
+    setWatermarkEnabled(false);
+    setSelected(item);
+    setShowPublishDialog(true);
+  }
+
+  async function handlePublish(item: Generation) {
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/inspiration/${item._id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          published: true,
+          title: publishTitle.trim() || item.prompt,
+          watermark_enabled: watermarkEnabled,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `发布失败 (${res.status})`);
+      }
+      setItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, published: true } : i))
+      );
+      setSelected((prev) => (prev?._id === item._id ? { ...prev, published: true } : prev));
+      setShowPublishDialog(false);
+      toast.success("发布成功");
+    } catch (e: any) {
+      toast.error(e?.message || "发布失败，请重试");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleUnpublish(item: Generation) {
+    if (!confirm("确定要取消发布吗？")) return;
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/inspiration/${item._id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ published: false }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `操作失败 (${res.status})`);
+      }
+      setItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, published: false } : i))
+      );
+      setSelected((prev) => (prev?._id === item._id ? { ...prev, published: false } : prev));
+      toast.success("已取消发布");
+    } catch (e: any) {
+      toast.error(e?.message || "操作失败，请重试");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen">
@@ -241,6 +308,12 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                       "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
                   }}
                 />
+                {item.published && (
+                  <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-purple-500/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                    <Share2 className="size-2.5" />
+                    已发布
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -350,6 +423,28 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                   <Download className="mr-1.5 size-4" />
                   下载图片
                 </Button>
+                {selected.published ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleUnpublish(selected)}
+                    disabled={publishing}
+                  >
+                    {publishing ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" />
+                    ) : (
+                      <Share2 className="mr-1.5 size-4" />
+                    )}
+                    取消发布
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => openPublishDialog(selected)}
+                    disabled={publishing}
+                  >
+                    <Share2 className="mr-1.5 size-4" />
+                    发布到灵感大厅
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
@@ -372,6 +467,54 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Publish dialog */}
+      <Dialog open={showPublishDialog} onOpenChange={(open) => { if (!open) setShowPublishDialog(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>发布到灵感大厅</DialogTitle>
+            <DialogDescription>发布后其他用户可以看到并"做同款"</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                标题（可选）
+              </label>
+              <input
+                type="text"
+                value={publishTitle}
+                onChange={(e) => setPublishTitle(e.target.value)}
+                placeholder={selected ? truncate(selected.prompt, 30) : "输入标题"}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+            {/* 暂时隐藏水印选项
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={watermarkEnabled}
+                onChange={(e) => setWatermarkEnabled(e.target.checked)}
+                className="size-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              添加水印保护
+            </label>
+            */}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={() => selected && handlePublish(selected)} disabled={publishing}>
+              {publishing ? (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <Share2 className="mr-1.5 size-4" />
+              )}
+              发布
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

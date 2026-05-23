@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, Download, Save, ImagePlus, X } from "lucide-react";
+import { Loader2, Download, Save, ImagePlus, X, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { models, ASPECT_RATIOS, getPixelSize } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import { useGenerateState } from "@/lib/use-generate-state";
@@ -53,13 +61,39 @@ export default function GeneratePageClient({ examples }: Props) {
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
   const [referencePreviews, setReferencePreviews] = useState<string[]>([]);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [publishTitle, setPublishTitle] = useState("");
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
 
   // Apply URL params for "做同款" flow (overrides localStorage state)
   useEffect(() => {
     const promptParam = searchParams.get("prompt");
     const modelParam = searchParams.get("model");
+    const refParam = searchParams.get("ref");
     if (promptParam) setPrompt(promptParam);
     if (modelParam) setModel(modelParam);
+
+    // Load reference images from URL params
+    if (refParam) {
+      try {
+        const urls: string[] = JSON.parse(refParam);
+        if (Array.isArray(urls) && urls.length > 0) {
+          // Fetch images and convert to File objects
+          Promise.all(
+            urls.map(async (url) => {
+              const res = await fetch(url);
+              const blob = await res.blob();
+              return new File([blob], `reference-${Date.now()}.png`, { type: blob.type });
+            })
+          ).then((files) => {
+            setReferenceImages(files);
+            setReferencePreviews(urls);
+          }).catch(() => {});
+        }
+      } catch {}
+    }
   }, [searchParams, setPrompt, setModel]);
 
   // Restore loading state from pending generation
@@ -236,6 +270,7 @@ export default function GeneratePageClient({ examples }: Props) {
     setLoading(true);
     setResult(null);
     setResultSaved(false);
+    setPublished(false);
 
     try {
       const formData = new FormData();
@@ -321,6 +356,33 @@ export default function GeneratePageClient({ examples }: Props) {
       toast.error("保存失败");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!result?.generation_id) return;
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/inspiration/${result.generation_id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          published: true,
+          title: publishTitle.trim() || prompt.trim(),
+          watermark_enabled: watermarkEnabled,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `发布失败 (${res.status})`);
+      }
+      setPublished(true);
+      setShowPublishDialog(false);
+      toast.success("发布成功");
+    } catch (e: any) {
+      toast.error(e?.message || "发布失败，请重试");
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -492,6 +554,13 @@ export default function GeneratePageClient({ examples }: Props) {
                   )}
                   {resultSaved ? "已保存" : "保存"}
                 </Button>
+                <Button
+                  onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
+                  disabled={published || publishing}
+                >
+                  <Share2 className="mr-1.5 size-4" />
+                  {published ? "已发布" : "发布"}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -531,6 +600,54 @@ export default function GeneratePageClient({ examples }: Props) {
             </div>
           </div>
         )}
+
+        {/* Publish dialog */}
+        <Dialog open={showPublishDialog} onOpenChange={(open) => { if (!open) setShowPublishDialog(false); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>发布到灵感大厅</DialogTitle>
+              <DialogDescription>发布后其他用户可以看到并"做同款"</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  标题（可选）
+                </label>
+                <input
+                  type="text"
+                  value={publishTitle}
+                  onChange={(e) => setPublishTitle(e.target.value)}
+                  placeholder={prompt.trim().slice(0, 30) || "输入标题"}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                />
+              </div>
+              {/* 暂时隐藏水印选项
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={watermarkEnabled}
+                  onChange={(e) => setWatermarkEnabled(e.target.checked)}
+                  className="size-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                添加水印保护
+              </label>
+              */}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
+                取消
+              </Button>
+              <Button onClick={handlePublish} disabled={publishing}>
+                {publishing ? (
+                  <Loader2 className="mr-1.5 size-4 animate-spin" />
+                ) : (
+                  <Share2 className="mr-1.5 size-4" />
+                )}
+                发布
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

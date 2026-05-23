@@ -53,6 +53,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   const [inspirationTitle, setInspirationTitle] = useState("");
   const [inspirationPrompt, setInspirationPrompt] = useState("");
   const [inspirationModel, setInspirationModel] = useState("jimeng-4.0");
+  const [inspirationAuthor, setInspirationAuthor] = useState("");
   const [inspirationFile, setInspirationFile] = useState<File | null>(null);
   const [inspirationPreview, setInspirationPreview] = useState<string>("");
   const [publishingInspiration, setPublishingInspiration] = useState(false);
@@ -284,6 +285,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
       formData.append("prompt", inspirationPrompt.trim());
       formData.append("title", inspirationTitle.trim());
       formData.append("model", inspirationModel);
+      formData.append("author", inspirationAuthor.trim());
 
       const res = await fetch("/api/admin/inspiration", {
         method: "POST",
@@ -297,6 +299,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
         setInspirationPreview("");
         setInspirationTitle("");
         setInspirationPrompt("");
+        setInspirationAuthor("");
         fetchInspirationItems();
       } else {
         const data = await res.json();
@@ -666,6 +669,16 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                   <option value="管理员上传">管理员上传</option>
                 </select>
               </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  作者名 <span className="text-gray-400">(可选)</span>
+                </label>
+                <Input
+                  value={inspirationAuthor}
+                  onChange={(e) => setInspirationAuthor(e.target.value)}
+                  placeholder="留空则显示为匿名用户"
+                />
+              </div>
               <Button
                 onClick={handlePublishInspiration}
                 disabled={publishingInspiration || !inspirationFile || !inspirationPrompt.trim()}
@@ -715,6 +728,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                         <p className="truncate text-xs text-gray-500">{item.prompt}</p>
                         <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
                           <span>{item.model}</span>
+                          <span>作者: {item.username || "匿名用户"}</span>
                           <span>{new Date(item.created_at).toLocaleDateString("zh-CN")}</span>
                           {editingLikesId === item._id ? (
                             <span className="flex items-center gap-1">
