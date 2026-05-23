@@ -91,7 +91,7 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  const saveCookiesAndRedirect = async (auth: ReturnType<typeof getAuth>) => {
+  const saveCookiesAndRedirect = async (auth: ReturnType<typeof getAuth>, isRegistration = false) => {
     const loginState = await auth.getLoginState();
     if (loginState) {
       const { accessToken } = await auth.getAccessToken();
@@ -106,6 +106,11 @@ export default function LoginPage() {
       );
       document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+
+      // 注册时记录用户到 users 集合
+      if (isRegistration) {
+        fetch("/api/auth/record-registration", { method: "POST" }).catch(() => {});
+      }
     }
     toast.success("登录成功");
     // 延迟导航，确保浏览器将cookie写入HTTP请求头
@@ -245,7 +250,7 @@ export default function LoginPage() {
         toast.error(getAuthErrorMessage(res.error));
       } else {
         toast.success("注册成功");
-        await saveCookiesAndRedirect(auth);
+        await saveCookiesAndRedirect(auth, true);
       }
     } catch (err: unknown) {
       console.error("signUp exception:", err);
