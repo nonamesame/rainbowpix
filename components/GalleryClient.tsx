@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Download, Trash2, Loader2, ImageOff, Eye, Share2 } from "lucide-react";
+import ImageViewer from "@/components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +24,8 @@ interface Generation {
   reference_image_url?: string;
   created_at: string;
   published?: boolean;
+  width?: number;
+  height?: number;
 }
 
 interface Props {
@@ -73,6 +76,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
   const [showRefImage, setShowRefImage] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [publishTitle, setPublishTitle] = useState("");
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
 
@@ -369,12 +373,15 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                 <DialogDescription>{formatDate(selected.created_at)}</DialogDescription>
               </DialogHeader>
 
-              <div className="relative overflow-hidden rounded-xl bg-gray-100">
+              <div
+                className="relative max-h-[60vh] cursor-pointer overflow-hidden rounded-xl bg-gray-100"
+                onClick={() => setFullscreen(true)}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={toProxyUrl(selected.image_url)}
                   alt={selected.prompt}
-                  className="w-full object-contain"
+                  className="mx-auto max-h-[60vh] object-contain"
                 />
                 {/* Watermark */}
                 <span className="pointer-events-none absolute bottom-2 right-2 select-none rounded bg-black/30 px-2 py-0.5 text-xs text-white/70 backdrop-blur-sm">
@@ -475,7 +482,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>发布到灵感大厅</DialogTitle>
-            <DialogDescription>发布后其他用户可以看到并"做同款"</DialogDescription>
+            <DialogDescription>发布后其他用户可以看到并点赞</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -517,6 +524,15 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Full-screen image viewer */}
+      {fullscreen && selected && (
+        <ImageViewer
+          src={toProxyUrl(selected.image_url)}
+          alt={selected.prompt}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
     </div>
   );
 }

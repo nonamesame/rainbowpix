@@ -50,18 +50,24 @@ function save(state: PersistedState) {
   } catch {}
 }
 
-export function useGenerateState() {
+export function useGenerateState(hasUrlParams = false, initial?: { prompt?: string; model?: string; size?: string }) {
   const [hydrated, setHydrated] = useState(false);
 
-  const [model, setModel] = useState(DEFAULTS.model);
-  const [prompt, setPrompt] = useState(DEFAULTS.prompt);
-  const [size, setSize] = useState(DEFAULTS.size);
+  // If URL params are present, use them as initial values directly (no useEffect delay)
+  const [model, setModel] = useState(hasUrlParams && initial?.model ? initial.model : DEFAULTS.model);
+  const [prompt, setPrompt] = useState(hasUrlParams && initial?.prompt ? initial.prompt : DEFAULTS.prompt);
+  const [size, setSize] = useState(hasUrlParams && initial?.size ? initial.size : DEFAULTS.size);
   const [result, setResult] = useState<GenerateResult | null>(DEFAULTS.result);
   const [resultSaved, setResultSaved] = useState(DEFAULTS.saved);
   const [pending, setPending] = useState<PendingGeneration | null>(null);
 
   // Hydrate from localStorage after mount (avoids server/client mismatch)
+  // Skip if URL params are present (做同款 flow) to avoid race condition
   useEffect(() => {
+    if (hasUrlParams) {
+      setHydrated(true);
+      return;
+    }
     const saved = load();
     if (saved) {
       if (saved.model) setModel(saved.model);
@@ -72,7 +78,7 @@ export function useGenerateState() {
       if (saved.pending) setPending(saved.pending);
     }
     setHydrated(true);
-  }, []);
+  }, [hasUrlParams]);
 
   // Ref to track current state for synchronous saves
   const stateRef = useRef({ model, prompt, size, result, saved: resultSaved, pending });

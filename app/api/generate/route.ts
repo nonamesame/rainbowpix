@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
       published: false,
       watermark_enabled: false,
       likes_count: 0,
+      width,
+      height,
     });
     const id = addResult.id!;
 

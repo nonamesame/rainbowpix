@@ -12,6 +12,8 @@ export interface InspirationItem {
   username: string;
   title?: string;
   user_liked?: boolean;
+  width?: number;
+  height?: number;
 }
 
 export interface GalleryLike {

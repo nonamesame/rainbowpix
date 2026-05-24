@@ -40,6 +40,20 @@ export function getPixelSize(aspectRatio: string, modelId: string): { w: number;
   return modelMap[aspectRatio] || modelMap["1:1"];
 }
 
+export function widthHeightToAspectRatio(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const d = gcd(width, height);
+  const normalized = `${width / d}:${height / d}`;
+  const knownRatios: Record<string, string> = {
+    "1:1": "1:1",
+    "3:4": "3:4",
+    "4:3": "4:3",
+    "9:16": "9:16",
+    "16:9": "16:9",
+  };
+  return knownRatios[normalized] || "1:1";
+}
+
 export const models: Model[] = [
   {
     id: "jimeng-3.0",

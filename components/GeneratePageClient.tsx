@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Loader2, Download, Save, ImagePlus, X, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,10 +42,20 @@ interface GenerateResult {
 
 interface Props {
   examples: Example[];
+  initialPrompt?: string;
+  initialModel?: string;
+  initialRef?: string;
+  initialRatio?: string;
 }
 
-export default function GeneratePageClient({ examples }: Props) {
-  const searchParams = useSearchParams();
+export default function GeneratePageClient({
+  examples,
+  initialPrompt,
+  initialModel,
+  initialRef,
+  initialRatio,
+}: Props) {
+  const hasUrlParams = !!(initialPrompt || initialModel);
   const {
     model, setModel,
     prompt, setPrompt,
@@ -54,7 +63,11 @@ export default function GeneratePageClient({ examples }: Props) {
     result, setResult,
     resultSaved, setResultSaved,
     pending, startPending, completePending, clearPending,
-  } = useGenerateState();
+  } = useGenerateState(hasUrlParams, {
+    prompt: initialPrompt,
+    model: initialModel,
+    size: initialRatio,
+  });
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,20 +80,12 @@ export default function GeneratePageClient({ examples }: Props) {
   const [publishTitle, setPublishTitle] = useState("");
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
 
-  // Apply URL params for "做同款" flow (overrides localStorage state)
+  // Load reference images from URL params (async, so needs useEffect)
   useEffect(() => {
-    const promptParam = searchParams.get("prompt");
-    const modelParam = searchParams.get("model");
-    const refParam = searchParams.get("ref");
-    if (promptParam) setPrompt(promptParam);
-    if (modelParam) setModel(modelParam);
-
-    // Load reference images from URL params
-    if (refParam) {
+    if (initialRef) {
       try {
-        const urls: string[] = JSON.parse(refParam);
+        const urls: string[] = JSON.parse(initialRef);
         if (Array.isArray(urls) && urls.length > 0) {
-          // Fetch images and convert to File objects
           Promise.all(
             urls.map(async (url) => {
               const res = await fetch(url);
@@ -94,7 +99,7 @@ export default function GeneratePageClient({ examples }: Props) {
         }
       } catch {}
     }
-  }, [searchParams, setPrompt, setModel]);
+  }, [initialRef]);
 
   // Restore loading state from pending generation
   useEffect(() => {
@@ -529,11 +534,11 @@ export default function GeneratePageClient({ examples }: Props) {
         {result && (
           <Card className="mt-6 rounded-2xl bg-white shadow-md">
             <CardContent className="p-4 md:p-6">
-              <div className="overflow-hidden rounded-xl">
+              <div className="max-h-[60vh] overflow-hidden rounded-xl">
                 <img
                   src={toProxyUrl(result.image_url)}
                   alt="生成结果"
-                  className="w-full rounded-xl object-cover"
+                  className="mx-auto max-h-[60vh] rounded-xl object-contain"
                 />
               </div>
               <div className="mt-4 flex gap-3">

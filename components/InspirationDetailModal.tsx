@@ -3,6 +3,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Heart, Copy, Sparkles, Download, Eye, Loader2 } from "lucide-react";
+import ImageViewer from "@/components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { models } from "@/lib/models";
+import { models, widthHeightToAspectRatio } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 
@@ -57,6 +58,7 @@ export default function InspirationDetailModal({
   const [liking, setLiking] = useState(false);
   const [showRefImage, setShowRefImage] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const isOwner = currentUserId === item.user_id;
   const hasRefImages = parseReferenceImages(item.reference_image_url).length > 0;
@@ -104,6 +106,12 @@ export default function InspirationDetailModal({
     if (refImages.length > 0) {
       params.set("ref", JSON.stringify(refImages));
     }
+    // 管理员上传的图片默认 1:1，其他图片根据尺寸匹配
+    if (item.model === "管理员上传") {
+      params.set("ratio", "1:1");
+    } else if (item.width && item.height) {
+      params.set("ratio", widthHeightToAspectRatio(item.width, item.height));
+    }
     window.location.href = `/generate?${params.toString()}`;
   }
 
@@ -144,12 +152,15 @@ export default function InspirationDetailModal({
           </DialogHeader>
 
           {/* Image */}
-          <div className="relative overflow-hidden rounded-xl bg-gray-100">
+          <div
+            className="relative max-h-[60vh] cursor-pointer overflow-hidden rounded-xl bg-gray-100"
+            onClick={() => setFullscreen(true)}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={toProxyUrl(item.image_url)}
               alt={item.prompt}
-              className="w-full object-contain"
+              className="mx-auto max-h-[60vh] object-contain"
             />
           </div>
 
@@ -260,6 +271,15 @@ export default function InspirationDetailModal({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Full-screen image viewer */}
+      {fullscreen && (
+        <ImageViewer
+          src={toProxyUrl(item.image_url)}
+          alt={item.prompt}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
     </>
   );
 }
