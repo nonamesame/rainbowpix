@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         break;
       }
       case "jimeng-4.0": {
-        imageUrl = await generateJimeng(prompt, "", width, height, referenceImagesBase64[0]);
+        imageUrl = await generateJimeng(prompt, "", width, height, referenceImagesBase64[0], undefined, "v4");
         break;
       }
       case "gpt-image-2": {
@@ -97,21 +97,22 @@ export async function POST(request: NextRequest) {
     const id = addResult.id!;
 
     // 6. 响应发送后，异步上传到 CloudBase 并更新数据库
-    if (!imageUrl.startsWith("data:")) {
-      after(async () => {
-        try {
-          const permanentUrl = await downloadAndUpload(
-            imageUrl,
-            `${model}-${Date.now()}.png`
-          );
-          await serverDb.collection("generations").doc(id).update({
-            image_url: permanentUrl,
-          });
-        } catch (err) {
-          console.error("[generate] async upload failed:", err);
+    after(async () => {
+      try {
+        let permanentUrl: string;
+        if (imageUrl.startsWith("data:")) {
+          const base64 = imageUrl.split(",")[1];
+          permanentUrl = await uploadBase64(base64, `${model}-${Date.now()}.png`);
+        } else {
+          permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`);
         }
-      });
-    }
+        await serverDb.collection("generations").doc(id).update({
+          image_url: permanentUrl,
+        });
+      } catch (err) {
+        console.error("[generate] async upload failed:", err);
+      }
+    });
 
     // 7. 立即返回原始 URL
     return Response.json({
@@ -120,9 +121,8 @@ export async function POST(request: NextRequest) {
       generation_id: id,
     });
   } catch (error: any) {
-    console.error("Generate API error:", error);
+    console.error("Generate API error:", error?.message);
 
-    // 如果是即梦API返回的错误，提取详细信息
     if (error.response?.data) {
       console.error("即梦 API response:", error.response.data);
     }

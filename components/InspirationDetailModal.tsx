@@ -153,22 +153,24 @@ export default function InspirationDetailModal({
 
           {/* Image */}
           <div
-            className="relative max-h-[60vh] cursor-pointer overflow-hidden rounded-xl bg-gray-100"
+            className="relative max-h-[45vh] cursor-pointer overflow-hidden rounded-xl bg-gray-100"
             onClick={() => setFullscreen(true)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={toProxyUrl(item.image_url)}
               alt={item.prompt}
-              className="mx-auto max-h-[60vh] object-contain"
+              className="mx-auto max-h-[45vh] object-contain"
             />
           </div>
 
           {/* Info */}
           <div className="space-y-2 text-sm">
             <div className="flex items-start gap-1">
-              <span className="font-medium text-gray-700">提示词：</span>
-              <span className="flex-1 text-gray-600 break-all">{item.prompt}</span>
+              <span className="shrink-0 font-medium text-gray-700">提示词：</span>
+              <div className="flex-1 max-h-[15vh] overflow-y-auto">
+                <span className="text-gray-600 break-all text-xs leading-relaxed">{item.prompt}</span>
+              </div>
               <button
                 type="button"
                 onClick={handleCopyPrompt}

@@ -148,8 +148,8 @@ export default function NotificationModal({ notifications, initialNotification, 
                         <Icon className="size-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium truncate ${isSelected ? "text-purple-700" : "text-gray-900"}`}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`text-sm font-medium min-w-0 break-all ${isSelected ? "text-purple-700" : "text-gray-900"}`}>
                             {n.title}
                           </span>
                           {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-purple-500" />}
@@ -196,9 +196,9 @@ export default function NotificationModal({ notifications, initialNotification, 
                   })()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-gray-900">{selectedNotification.title}</h2>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${typeLabel[selectedNotification.type]?.color || "bg-gray-100 text-gray-600"}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-gray-900 min-w-0 break-all">{selectedNotification.title}</h2>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeLabel[selectedNotification.type]?.color || "bg-gray-100 text-gray-600"}`}>
                       {typeLabel[selectedNotification.type]?.label || selectedNotification.type}
                     </span>
                   </div>

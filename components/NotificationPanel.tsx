@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import { Bell, Heart, MessageCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -30,6 +31,22 @@ const typeLabel: Record<string, { label: string; color: string }> = {
 };
 
 export default function NotificationPanel({ notifications, loading, onMarkRead, onMarkAllRead, onDelete, onSelect, onClose }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      const atTop = el.scrollTop === 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight;
+      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+        e.preventDefault();
+      }
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   function handleClick(n: Notification) {
     if (!n.read) {
       onMarkRead([n._id]);
@@ -51,7 +68,10 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
           </button>
         )}
       </div>
-      <div className="max-h-80 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="max-h-80 overflow-y-auto overflow-x-hidden"
+      >
         {loading ? (
           <div className="flex items-center justify-center py-8 text-sm text-gray-400">
             加载中...
@@ -84,9 +104,9 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
                     <Icon className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900 truncate">{n.title}</span>
-                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeLabel[n.type]?.color || "bg-gray-100 text-gray-600"}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900 min-w-0 break-all">{n.title}</span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeLabel[n.type]?.color || "bg-gray-100 text-gray-600"}`}>
                         {typeLabel[n.type]?.label || n.type}
                       </span>
                       {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-purple-500" />}

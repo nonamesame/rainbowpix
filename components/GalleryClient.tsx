@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Download, Trash2, Loader2, ImageOff, Eye, Share2 } from "lucide-react";
+import { Download, Trash2, Loader2, ImageOff, Eye, Share2, Copy } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import {
@@ -166,6 +166,14 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  function handleCopyPrompt(prompt: string) {
+    navigator.clipboard.writeText(prompt).then(() => {
+      toast.success("已复制到剪贴板");
+    }).catch(() => {
+      toast.error("复制失败");
+    });
   }
 
   async function handleDownload(item: Generation) {
@@ -365,7 +373,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setShowRefImage(false); } }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -390,9 +398,19 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
               </div>
 
               <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700">提示词：</span>
-                  <span className="text-gray-600">{selected.prompt}</span>
+                <div className="flex items-start gap-1">
+                  <span className="shrink-0 font-medium text-gray-700">提示词：</span>
+                  <div className="flex-1 max-h-[15vh] overflow-y-auto">
+                    <span className="text-gray-600 break-all text-xs leading-relaxed">{selected.prompt}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPrompt(selected.prompt)}
+                    className="flex shrink-0 items-center justify-center rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    title="复制提示词"
+                  >
+                    <Copy className="size-3.5" />
+                  </button>
                 </div>
                 {selected.reference_image_url && (
                   <div className="flex items-center gap-2">

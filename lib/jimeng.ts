@@ -117,29 +117,36 @@ export async function generateImage(
   height: number,
   referenceImageBase64?: string,
   reqKey?: string,
+  modelVersion?: 'v3' | 'v4',
 ): Promise<string> {
   if (!VOLC_ACCESS_KEY || !VOLC_SECRET_KEY) {
     throw new Error('缺少环境变量 VOLC_ACCESS_KEY / VOLC_SECRET_KEY')
   }
 
   const isImg2Img = !!referenceImageBase64
+  const isV4 = modelVersion === 'v4'
 
   const body: Record<string, any> = {
     req_key: reqKey || (isImg2Img ? 'jimeng_i2i_v40' : 'jimeng_t2i_v40'),
     prompt,
-    negative_prompt: negativePrompt,
     width,
     height,
     seed: -1,
-    scale: 3.5,
-    ddim_steps: 25,
-    use_sr: true,
-    return_url: true,
-    logo_info: { add_logo: false },
+  }
+
+  if (negativePrompt) {
+    body.negative_prompt = negativePrompt
+  }
+
+  if (!isV4) {
+    body.scale = 3.5
+    body.ddim_steps = 25
+    body.use_sr = true
+    body.return_url = true
+    body.logo_info = { add_logo: false }
   }
 
   if (isImg2Img) {
-    // 图生图：即梦API使用image_url参数
     body.image_url = `data:image/png;base64,${referenceImageBase64}`
     body.img_guidance_strength = 0.5
     body.image_num = 1
@@ -151,9 +158,14 @@ export async function generateImage(
 
   const url = `https://${HOST}/?Action=CVProcess&Version=2022-08-31`
 
-  const { data } = await axios.post(url, bodyStr, { headers, timeout: 120_000 })
-
-  console.log('即梦 API response:', JSON.stringify(data, null, 2))
+  let data: any
+  try {
+    const resp = await axios.post(url, bodyStr, { headers, timeout: 120_000 })
+    data = resp.data
+  } catch (err: any) {
+    console.error('即梦 API error:', err.response?.status, JSON.stringify(err.response?.data || err.message))
+    throw err
+  }
 
   if (data.code !== 10000) {
     throw new Error(`即梦 API 错误 [${data.code}]: ${data.message}`)
@@ -163,5 +175,14 @@ export async function generateImage(
     return data.data.image_urls[0]
   }
 
-  throw new Error('即梦 API 未返回图片 URL')
+  if (data.data?.binary_data_base64) {
+    const b64 = Array.isArray(data.data.binary_data_base64)
+      ? data.data.binary_data_base64[0]
+      : data.data.binary_data_base64
+    if (b64) {
+      return `data:image/png;base64,${b64}`
+    }
+  }
+
+  throw new Error('即梦 API 未返回图片数据')
 }

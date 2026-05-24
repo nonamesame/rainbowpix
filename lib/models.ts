@@ -21,10 +21,6 @@ const SIZE_MAP: Record<string, Record<string, { w: number; h: number }>> = {
   },
   "jimeng-4.0": {
     "1:1": { w: 1024, h: 1024 },
-    "3:4": { w: 768, h: 1024 },
-    "4:3": { w: 1024, h: 768 },
-    "9:16": { w: 576, h: 1024 },
-    "16:9": { w: 1024, h: 576 },
   },
   "gpt-image-2": {
     "1:1": { w: 1024, h: 1024 },
@@ -67,8 +63,8 @@ export const models: Model[] = [
   {
     id: "jimeng-4.0",
     name: "即梦4.0",
-    description: "字节跳动推出的AI绘画模型，擅长生成高质量的图像",
-    supportedAspectRatios: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+    description: "字节跳动推出的AI绘画模型，擅长生成高质量的图像（仅支持1:1）",
+    supportedAspectRatios: ["1:1"],
     creditCost: 1,
     supportsReferenceImage: false,
     maxReferenceImages: 0,

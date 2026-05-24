@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Megaphone, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Megaphone, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Announcement {
@@ -11,6 +11,39 @@ interface Announcement {
   body: string;
   image?: string | null;
   created_at: string;
+}
+
+function LoadingImage({
+  src,
+  alt,
+  className,
+  style,
+}: {
+  src: string;
+  alt?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  return (
+    <div className="relative w-full">
+      {!loaded && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+          <Loader2 className="size-6 animate-spin text-purple-400" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt || ""}
+        className={className}
+        style={{ ...style, display: error ? "none" : undefined }}
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+      />
+    </div>
+  );
 }
 
 function parseBodyWithImages(body: string) {
@@ -108,16 +141,13 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         {/* Image header */}
         {hasImage && (
           <div className="relative w-full overflow-hidden">
-            <img
+            <LoadingImage
               src={announcement.image!}
               alt={announcement.title}
               className="w-full object-cover"
               style={{
                 maxHeight: textLength > 200 ? "35vh" : "45vh",
                 minHeight: "160px",
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
               }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
@@ -175,14 +205,11 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
           <div className="space-y-3 text-sm leading-relaxed text-gray-500">
             {bodyParts.map((part, i) =>
               part.type === "image" ? (
-                <img
+                <LoadingImage
                   key={i}
                   src={part.content}
                   alt={part.alt || ""}
                   className="max-h-64 w-full rounded-lg object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
                 />
               ) : (
                 <p key={i} className="break-all whitespace-pre-wrap">
