@@ -15,27 +15,33 @@ const navItems = [
   { href: "/", label: "灵感大厅", icon: Home },
   { href: "/generate", label: "AI绘画", icon: Palette },
   { href: "/gallery", label: "画廊", icon: ImageIcon, requireAuth: true },
-  { href: "/login", label: "我的", icon: User },
 ];
 
 export default function BottomNav({ user, unreadCount }: Props) {
   const pathname = usePathname();
 
+  const myItem = user
+    ? { href: "/profile", label: "我的", icon: User, target: "_blank" as const }
+    : { href: "/login", label: "我的", icon: User };
+
+  const allItems = [...navItems, myItem];
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t bg-white/95 backdrop-blur-md px-2 py-1 safe-area-bottom">
-      {navItems.map((item) => {
+      {allItems.map((item) => {
         const Icon = item.icon;
         const isActive =
           item.href === "/"
             ? pathname === "/"
             : pathname.startsWith(item.href);
-        const needsLogin = item.requireAuth && !user;
+        const needsLogin = "requireAuth" in item && item.requireAuth && !user;
         const href = needsLogin ? "/login" : item.href;
 
         return (
           <Link
             key={item.href}
             href={href}
+            target={"target" in item ? item.target : undefined}
             className={cn(
               "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors min-w-[56px]",
               isActive

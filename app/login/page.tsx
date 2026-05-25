@@ -6,59 +6,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { getAuth } from "@/lib/cloudbase/client";
+import { formatPhone, getAuthErrorMessage, saveCookiesAndRedirect } from "@/lib/cloudbase/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
 type PageState = "login" | "register" | "verify";
 type LoginMode = "phone" | "email";
+type LoginType = "password" | "code";
 type RegisterBind = "phone" | "email";
-
-function formatPhone(phone: string): string {
-  // 移除所有空格、横杠、括号
-  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
-  // 如果已带+号，直接返回
-  if (cleaned.startsWith("+")) return cleaned;
-  // 中国手机号：去掉开头的0，加+86
-  if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
-  return `+86 ${cleaned}`;
-}
-
-function getAuthErrorMessage(err: unknown): string {
-  if (!err) return "登录失败，请重试";
-  const error = err as Record<string, unknown>;
-  const code = String(error.code || "");
-  const desc = String(error.error_description || error.message || "");
-
-  // 按 code 匹配
-  if (/INVALID_USERNAME_OR_PASSWORD|INVALID_CREDENTIALS|WRONG_PASSWORD/i.test(code)) {
-    return "账号或密码错误";
-  }
-  if (/USER_NOT_FOUND/i.test(code)) {
-    return "用户不存在";
-  }
-  if (/USER_STATUS_ABNORMAL|ACCOUNT_DISABLED/i.test(code)) {
-    return "账号状态异常，请联系客服";
-  }
-  if (/PROVIDER_NOT_ENABLED/i.test(code)) {
-    return "该登录方式未启用";
-  }
-  if (/USER_ALREADY_EXISTS|ALREADY_EXIST|CONFLICT/i.test(code)) {
-    return "该手机号/邮箱已注册，请直接登录";
-  }
-  if (/SERVICE_ERROR|INTERNAL/i.test(code)) {
-    return "服务暂时不可用，请稍后重试";
-  }
-
-  // 兜底：用 error_description 或 message
-  if (desc) return desc;
-  return "登录失败，请重试";
-}
 
 export default function LoginPage() {
   const router = useRouter();
   const [state, setState] = useState<PageState>("login");
   const [loginMode, setLoginMode] = useState<LoginMode>("phone");
+  const [loginType, setLoginType] = useState<LoginType>("password");
   const [registerBind, setRegisterBind] = useState<RegisterBind>("phone");
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -67,6 +29,9 @@ export default function LoginPage() {
   const [loginPhone, setLoginPhone] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [loginCode, setLoginCode] = useState("");
+  const [loginCodeSent, setLoginCodeSent] = useState(false);
+  const [loginVerificationId, setLoginVerificationId] = useState("");
 
   // 注册字段
   const [regUsername, setRegUsername] = useState("");
@@ -91,34 +56,6 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  const saveCookiesAndRedirect = async (auth: ReturnType<typeof getAuth>, isRegistration = false) => {
-    const loginState = await auth.getLoginState();
-    if (loginState) {
-      const { accessToken } = await auth.getAccessToken();
-      const userInfo = loginState.user;
-      const userPayload = btoa(
-        JSON.stringify({
-          uid: userInfo.uid,
-          email: userInfo.email,
-          phone: userInfo.phoneNumber,
-          username: userInfo.username,
-        })
-      );
-      document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
-
-      // 注册时记录用户到 users 集合
-      if (isRegistration) {
-        fetch("/api/auth/record-registration", { method: "POST" }).catch(() => {});
-      }
-    }
-    toast.success("登录成功");
-    // 延迟导航，确保浏览器将cookie写入HTTP请求头
-    setTimeout(() => {
-      window.location.href = "/generate";
-    }, 50);
-  };
-
   // ========== 登录 ==========
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,20 +64,98 @@ export default function LoginPage() {
       const auth = getAuth();
       const identifier =
         loginMode === "phone" ? formatPhone(loginPhone) : loginEmail;
-      if (!identifier || !loginPassword) {
-        toast.error("请填写完整信息");
-        setLoading(false);
+
+      if (loginType === "password") {
+        // 密码登录
+        if (!identifier || !loginPassword) {
+          toast.error("请填写完整信息");
+          setLoading(false);
+          return;
+        }
+        const res = await auth.signIn({
+          username: identifier,
+          password: loginPassword,
+        } as any);
+        if ("error" in res && res.error) {
+          toast.error(getAuthErrorMessage(res.error));
+        } else {
+          await saveCookiesAndRedirect(auth);
+        }
+      } else {
+        // 验证码登录
+        if (!identifier || !loginCode) {
+          toast.error("请填写完整信息");
+          setLoading(false);
+          return;
+        }
+        if (!loginVerificationId) {
+          toast.error("请先获取验证码");
+          setLoading(false);
+          return;
+        }
+        // Step 1: 验证验证码
+        const verifyRes = await auth.verify({
+          verification_code: loginCode,
+          verification_id: loginVerificationId,
+        });
+        if (!verifyRes?.verification_token) {
+          toast.error("验证码验证失败");
+          setLoading(false);
+          return;
+        }
+        // Step 2: 使用 verification_token 登录
+        const params: Record<string, string> = {
+          username: identifier,
+          verification_token: verifyRes.verification_token,
+        };
+        const res = await auth.signIn(params as any);
+        if ("error" in res && res.error) {
+          toast.error(getAuthErrorMessage(res.error));
+        } else {
+          await saveCookiesAndRedirect(auth);
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(getAuthErrorMessage(err));
+    }
+    setLoading(false);
+  };
+
+  // ========== 验证码登录 - 发送验证码 ==========
+  const handleLoginSendCode = async () => {
+    if (loginMode === "phone" && !loginPhone) {
+      toast.error("请输入手机号");
+      return;
+    }
+    if (loginMode === "phone") {
+      const phoneNum = formatPhone(loginPhone);
+      if (!/^\+[1-9][0-9]{0,3}\s[0-9]{4,20}$/.test(phoneNum)) {
+        toast.error("手机号格式不正确，请输入11位手机号");
         return;
       }
-      const res = await auth.signIn({
-        username: identifier,
-        password: loginPassword,
-      } as any);
-      if ("error" in res && res.error) {
-        toast.error(getAuthErrorMessage(res.error));
+    }
+    if (loginMode === "email" && !loginEmail) {
+      toast.error("请输入邮箱");
+      return;
+    }
+    setLoading(true);
+    try {
+      const auth = getAuth();
+      let verificationRes;
+      if (loginMode === "phone") {
+        const phoneNum = formatPhone(loginPhone);
+        verificationRes = await auth.getVerification({
+          phone_number: phoneNum,
+        });
       } else {
-        await saveCookiesAndRedirect(auth);
+        verificationRes = await auth.getVerification({ email: loginEmail });
       }
+      if (verificationRes?.verification_id) {
+        setLoginVerificationId(verificationRes.verification_id);
+      }
+      toast.success("验证码已发送");
+      setLoginCodeSent(true);
+      startCountdown();
     } catch (err: unknown) {
       toast.error(getAuthErrorMessage(err));
     }
@@ -250,7 +265,7 @@ export default function LoginPage() {
         toast.error(getAuthErrorMessage(res.error));
       } else {
         toast.success("注册成功");
-        await saveCookiesAndRedirect(auth, true);
+        await saveCookiesAndRedirect(auth, { isRegistration: true, successMessage: "注册成功" });
       }
     } catch (err: unknown) {
       console.error("signUp exception:", err);
@@ -284,32 +299,44 @@ export default function LoginPage() {
             {/* ===== 登录 ===== */}
             {state === "login" && (
               <>
-                <div className="flex rounded-xl bg-gray-100 p-1">
+                {/* 切换登录方式 */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex gap-1 rounded-lg bg-gray-100 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setLoginMode("phone")}
+                      className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                        loginMode === "phone"
+                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      手机号
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoginMode("email")}
+                      className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                        loginMode === "email"
+                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      邮箱
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setLoginMode("phone")}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                      loginMode === "phone"
-                        ? "bg-white text-[#7c3aed] shadow-sm"
-                        : "text-gray-500"
-                    }`}
+                    onClick={() => setLoginType(loginType === "password" ? "code" : "password")}
+                    className="text-[#7c3aed] font-medium hover:underline"
                   >
-                    手机号登录
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoginMode("email")}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                      loginMode === "email"
-                        ? "bg-white text-[#7c3aed] shadow-sm"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    邮箱登录
+                    {loginType === "password" ? "验证码登录" : "密码登录"}
                   </button>
                 </div>
 
                 <form onSubmit={handleLogin} className="flex flex-col gap-5">
+                  {/* 手机号/邮箱输入 */}
                   {loginMode === "phone" ? (
                     <div className="group relative">
                       <Input
@@ -353,13 +380,40 @@ export default function LoginPage() {
                       )}
                     </div>
                   )}
-                  <Input
-                    type="password"
-                    placeholder="请输入密码"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
-                  />
+
+                  {/* 密码登录模式 */}
+                  {loginType === "password" && (
+                    <Input
+                      type="password"
+                      placeholder="请输入密码"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    />
+                  )}
+
+                  {/* 验证码登录模式 */}
+                  {loginType === "code" && (
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="请输入验证码"
+                        value={loginCode}
+                        onChange={(e) => setLoginCode(e.target.value)}
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleLoginSendCode}
+                        disabled={loading || countdown > 0}
+                        variant="outline"
+                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                      >
+                        {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                      </Button>
+                    </div>
+                  )}
+
                   <Button
                     type="submit"
                     disabled={loading}
@@ -368,6 +422,15 @@ export default function LoginPage() {
                     {loading ? "处理中..." : "登录"}
                   </Button>
                 </form>
+
+                <p className="text-center text-sm text-gray-500">
+                  <Link
+                    href="/forgot-password"
+                    className="text-[#7c3aed] font-medium hover:underline"
+                  >
+                    忘记密码？
+                  </Link>
+                </p>
 
                 <p className="text-center text-sm text-gray-500">
                   还没有账号？{" "}

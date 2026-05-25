@@ -124,9 +124,9 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         <button
           onClick={goNewer}
           disabled={!hasNewer}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-6" />
         </button>
 
         <div
@@ -247,9 +247,9 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         <button
           onClick={goOlder}
           disabled={!hasOlder}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-6" />
         </button>
       </div>
     </div>

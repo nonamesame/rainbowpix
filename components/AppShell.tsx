@@ -21,7 +21,8 @@ interface Props {
   children: React.ReactNode;
 }
 
-const STANDALONE_PATHS = ["/login", "/terms", "/privacy", "/complaint"];
+const STANDALONE_PATHS = ["/login", "/forgot-password", "/terms", "/privacy", "/complaint"];
+const NO_ANNOUNCEMENT_PATHS = ["/profile"];
 
 export default function AppShell({ user, children }: Props) {
   const pathname = usePathname();
@@ -47,6 +48,7 @@ export default function AppShell({ user, children }: Props) {
 
   useEffect(() => {
     if (!user || isStandalone || announcementDismissed) return;
+    if (NO_ANNOUNCEMENT_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) return;
 
     const sessionKey = `announcement_shown_${user.uid}`;
     if (sessionStorage.getItem(sessionKey)) return;
