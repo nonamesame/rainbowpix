@@ -5,7 +5,6 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Palette, Heart, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { models } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import InspirationDetailModal from "./InspirationDetailModal";
 import type { InspirationItem } from "@/lib/inspiration";
@@ -17,10 +16,6 @@ interface Props {
 }
 
 const PAGE_SIZE = 12;
-
-function getModelName(modelId: string) {
-  return models.find((m) => m.id === modelId)?.name || modelId;
-}
 
 function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
@@ -37,6 +32,7 @@ export default function InspirationGalleryClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<InspirationItem | null>(null);
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
+  const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
 
   const handleLikeToggle = useCallback((id: string, liked: boolean, count: number) => {
     setItems((prev) =>
@@ -57,6 +53,14 @@ export default function InspirationGalleryClient({
     if (likingIds.has(item._id)) return;
 
     setLikingIds((prev) => new Set(prev).add(item._id));
+    setAnimatingIds((prev) => new Set(prev).add(item._id));
+    setTimeout(() => {
+      setAnimatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item._id);
+        return next;
+      });
+    }, 400);
     const wasLiked = item.user_liked ?? false;
     const newCount = wasLiked ? (item.likes_count || 1) - 1 : (item.likes_count || 0) + 1;
     handleLikeToggle(item._id, !wasLiked, newCount);
@@ -96,7 +100,7 @@ export default function InspirationGalleryClient({
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-6 md:px-6">
+      <div className="px-6 py-6 md:px-12 lg:px-20">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -115,9 +119,9 @@ export default function InspirationGalleryClient({
           </Link>
         </div>
 
-        {/* Grid */}
+        {/* Masonry Grid */}
         {items.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4">
+          <div className="columns-2 gap-3 sm:columns-3 md:columns-4 md:gap-4">
             {items.map((item) => (
               <div
                 key={item._id}
@@ -130,45 +134,40 @@ export default function InspirationGalleryClient({
                     setSelected(item);
                   }
                 }}
-                className="group cursor-pointer rounded-xl bg-white p-2 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
+                className="mb-3 break-inside-avoid cursor-pointer md:mb-4"
               >
-                <div className="relative aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                   <img
                     src={toProxyUrl(item.image_url)}
                     alt={item.prompt}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="w-full block transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
                         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
                     }}
                   />
-                </div>
-                <p className="mt-1.5 truncate text-xs text-gray-600 md:mt-2">
-                  {item.title || truncate(item.prompt, 15)}
-                </p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
-                    {getModelName(item.model)}
-                  </span>
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                  {/* Work title - bottom left */}
+                  <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <p className="truncate text-xs font-medium text-white drop-shadow-md">
+                      {item.title || truncate(item.prompt, 20)}
+                    </p>
+                  </div>
+                  {/* Like button - right side */}
                   <button
                     onClick={(e) => handleCardLike(e, item)}
                     disabled={likingIds.has(item._id)}
-                    className={`flex items-center gap-0.5 text-[10px] transition-colors cursor-pointer hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
+                    className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
+                      item.user_liked
+                        ? "text-red-500"
+                        : "text-white hover:text-red-500"
+                    }`}
                   >
-                    <Heart className={`size-3 ${item.user_liked ? "fill-red-500" : ""}`} />
-                    {item.likes_count || 0}
+                    <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
+                    <span>{item.likes_count || 0}</span>
                   </button>
                 </div>
-                <p className="mt-0.5 text-[10px] text-gray-400 truncate">
-                  <Link
-                    href={`/profile/${item.user_id}`}
-                    target="_blank"
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:text-[#7c3aed] transition-colors"
-                  >
-                    {item.username || "匿名用户"}
-                  </Link>
-                </p>
               </div>
             ))}
           </div>
