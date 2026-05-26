@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { serverDb } from "@/lib/cloudbase/server";
@@ -15,24 +16,46 @@ export default async function ProfilePage() {
 
   let user: { uid: string; email?: string; phone?: string; username?: string };
   try {
-    user = JSON.parse(atob(userCookie));
+    user = decodeUserCookie(userCookie);
   } catch {
     redirect("/login");
   }
 
-  // Fetch profile data (handle case where users collection doesn't exist)
-  let profileData: any = null;
-  try {
-    const { data: users } = await serverDb
-      .collection("users")
-      .where({ uid: user.uid })
-      .limit(1)
-      .get();
-    profileData = users?.[0];
-  } catch {
-    // users collection may not exist yet, use cookie data as fallback
-  }
+  // Parallel: fetch profile + all works + published works + liked works
+  const [
+    profileResult,
+    worksResult,
+    worksCountResult,
+    publishedResult,
+    publishedCountResult,
+    likesResult,
+    likesCountResult,
+  ] = await Promise.all([
+    // Profile
+    serverDb.collection("users").where({ uid: user.uid }).limit(1).get().catch(() => ({ data: [] })),
+    // All works (first page)
+    serverDb.collection("generations")
+      .where({ user_id: user.uid })
+      .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "published", "watermark_enabled", "likes_count"])
+      .orderBy("created_at", "desc").skip(0).limit(12).get().catch(() => ({ data: [] })),
+    // All works count
+    serverDb.collection("generations").where({ user_id: user.uid }).count().catch(() => ({ total: 0 })),
+    // Published works (first page)
+    serverDb.collection("generations")
+      .where({ user_id: user.uid, published: true })
+      .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "user_id", "username", "likes_count", "watermark_enabled", "title"])
+      .orderBy("created_at", "desc").skip(0).limit(12).get().catch(() => ({ data: [] })),
+    // Published count
+    serverDb.collection("generations").where({ user_id: user.uid, published: true }).count().catch(() => ({ total: 0 })),
+    // Liked works (first page)
+    serverDb.collection("gallery_likes")
+      .where({ user_id: user.uid })
+      .orderBy("created_at", "desc").skip(0).limit(12).get().catch(() => ({ data: [] })),
+    // Liked count
+    serverDb.collection("gallery_likes").where({ user_id: user.uid }).count().catch(() => ({ total: 0 })),
+  ]);
 
+  const profileData = profileResult.data?.[0] || null;
   const profile = profileData || {
     uid: user.uid,
     username: user.username || "",
@@ -42,38 +65,14 @@ export default async function ProfilePage() {
     created_at: "",
   };
 
-  // Fetch first page of all works
-  const { data: works } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid })
-    .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "published", "watermark_enabled", "likes_count"])
-    .orderBy("created_at", "desc")
-    .skip(0)
-    .limit(12)
-    .get();
+  const works = worksResult.data || [];
+  const worksTotal = worksCountResult.total ?? 0;
 
-  const { total: worksTotal } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid })
-    .count();
-
-  // Fetch first page of published works
-  const { data: published } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid, published: true })
-    .field(["prompt", "model", "image_url", "reference_image_url", "created_at", "user_id", "username", "likes_count", "watermark_enabled", "title"])
-    .orderBy("created_at", "desc")
-    .skip(0)
-    .limit(12)
-    .get();
-
-  const { total: publishedTotal } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid, published: true })
-    .count();
+  const published = publishedResult.data || [];
+  const publishedTotal = publishedCountResult.total ?? 0;
 
   // Check like status for published items
-  let publishedItems = (published || []).map((item: any) => ({ ...item, user_liked: false }));
+  let publishedItems = published.map((item: any) => ({ ...item, user_liked: false }));
   if (publishedItems.length > 0) {
     try {
       const generationIds = publishedItems.map((item: any) => item._id);
@@ -95,26 +94,13 @@ export default async function ProfilePage() {
     }
   }
 
-  // Fetch first page of liked works
+  // Process liked works
+  const userLikes = likesResult.data || [];
+
   let likedItems: any[] = [];
   let likedTotal = 0;
-  try {
-    const { data: userLikes } = await serverDb
-      .collection("gallery_likes")
-      .where({ user_id: user.uid })
-      .orderBy("created_at", "desc")
-      .skip(0)
-      .limit(12)
-      .get();
-
-    const { total: userLikesTotal } = await serverDb
-      .collection("gallery_likes")
-      .where({ user_id: user.uid })
-      .count();
-
-    likedTotal = userLikesTotal ?? 0;
-
-    if (userLikes && userLikes.length > 0) {
+  if (userLikes.length > 0) {
+    try {
       const likedGenerationIds = userLikes.map((l: any) => l.generation_id);
       const { data: likedGenerations } = await serverDb
         .collection("generations")
@@ -134,9 +120,10 @@ export default async function ProfilePage() {
           return { ...gen, user_liked: true };
         })
         .filter(Boolean);
+      likedTotal = likedItems.length;
+    } catch {
+      // ignore
     }
-  } catch {
-    // gallery_likes collection may not exist yet
   }
 
   return (
@@ -148,12 +135,14 @@ export default async function ProfilePage() {
         email: profile.email || user.email || "",
         phone: profile.phone || user.phone || "",
         bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
         created_at: profile.created_at || "",
+        show_liked: profile.show_liked ?? false,
       }}
-      initialWorks={works || []}
-      worksTotal={worksTotal ?? 0}
+      initialWorks={works}
+      worksTotal={worksTotal}
       initialPublished={publishedItems}
-      publishedTotal={publishedTotal ?? 0}
+      publishedTotal={publishedTotal}
       initialLiked={likedItems}
       likedTotal={likedTotal}
     />

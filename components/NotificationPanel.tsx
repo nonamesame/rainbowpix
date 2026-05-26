@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { Bell, Heart, MessageCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -33,20 +33,6 @@ const typeLabel: Record<string, { label: string; color: string }> = {
 export default function NotificationPanel({ notifications, loading, onMarkRead, onMarkAllRead, onDelete, onSelect, onClose }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    function onWheel(e: WheelEvent) {
-      const atTop = el.scrollTop === 0;
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight;
-      if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
-        e.preventDefault();
-      }
-    }
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-
   function handleClick(n: Notification) {
     if (!n.read) {
       onMarkRead([n._id]);
@@ -70,7 +56,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
       </div>
       <div
         ref={scrollRef}
-        className="max-h-80 overflow-y-auto overflow-x-hidden"
+        className="max-h-80 overflow-y-auto overflow-x-hidden overscroll-contain"
       >
         {loading ? (
           <div className="flex items-center justify-center py-8 text-sm text-gray-400">

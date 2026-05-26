@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 
 export type NotificationType = "system" | "like" | "comment" | "announcement";
@@ -18,7 +19,7 @@ export function parseUserFromCookie(request: NextRequest): { uid: string } | nul
   const userPayload = request.cookies.get("tcb_user")?.value;
   if (!userPayload) return null;
   try {
-    return JSON.parse(atob(userPayload));
+    return decodeUserCookie(userPayload);
   } catch {
     return null;
   }

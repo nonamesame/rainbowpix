@@ -557,7 +557,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-h-96 space-y-3 overflow-y-auto">
+              <div className="max-h-96 space-y-3 overflow-y-auto overscroll-contain">
                 {notifications.length === 0 ? (
                   <div className="py-8 text-center text-gray-400">暂无通知</div>
                 ) : (
@@ -698,7 +698,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-h-96 space-y-3 overflow-y-auto">
+              <div className="max-h-96 space-y-3 overflow-y-auto overscroll-contain">
                 {inspirationItems.length === 0 ? (
                   <div className="py-8 text-center text-gray-400">暂无灵感</div>
                 ) : (

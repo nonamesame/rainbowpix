@@ -37,17 +37,6 @@ export default function InspirationGalleryClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<InspirationItem | null>(null);
 
-  // Fetch fresh data on mount to bypass Next.js client-side router cache
-  useEffect(() => {
-    fetch("/api/inspiration?page=1")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.items) setItems(d.items);
-        if (d.total != null) setTotal(d.total);
-      })
-      .catch(() => {});
-  }, []);
-
   const handleLikeToggle = useCallback((id: string, liked: boolean, count: number) => {
     setItems((prev) =>
       prev.map((item) =>
@@ -57,6 +46,26 @@ export default function InspirationGalleryClient({
       )
     );
   }, []);
+
+  async function handleCardLike(e: React.MouseEvent, item: InspirationItem) {
+    e.stopPropagation();
+    if (!currentUserId) {
+      toast.error("请先登录");
+      return;
+    }
+    const wasLiked = item.user_liked ?? false;
+    const newCount = wasLiked ? (item.likes_count || 1) - 1 : (item.likes_count || 0) + 1;
+    handleLikeToggle(item._id, !wasLiked, newCount);
+    try {
+      const res = await fetch(`/api/inspiration/${item._id}/like`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      handleLikeToggle(item._id, data.liked, data.likes_count);
+    } catch {
+      handleLikeToggle(item._id, wasLiked, item.likes_count || 0);
+      toast.error("操作失败，请重试");
+    }
+  }
 
   const hasMore = total > 0 && items.length < total;
 
@@ -131,13 +140,23 @@ export default function InspirationGalleryClient({
                   <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                     {getModelName(item.model)}
                   </span>
-                  <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-                    <Heart className="size-3" />
+                  <button
+                    onClick={(e) => handleCardLike(e, item)}
+                    className={`flex items-center gap-0.5 text-[10px] transition-colors cursor-pointer hover:text-red-500 ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
+                  >
+                    <Heart className={`size-3 ${item.user_liked ? "fill-red-500" : ""}`} />
                     {item.likes_count || 0}
-                  </span>
+                  </button>
                 </div>
                 <p className="mt-0.5 text-[10px] text-gray-400 truncate">
-                  {item.username || "匿名用户"}
+                  <Link
+                    href={`/profile/${item.user_id}`}
+                    target="_blank"
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:text-[#7c3aed] transition-colors"
+                  >
+                    {item.username || "匿名用户"}
+                  </Link>
                 </p>
               </div>
             ))}

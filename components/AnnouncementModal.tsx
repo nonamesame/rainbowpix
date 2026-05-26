@@ -155,7 +155,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         )}
 
         {/* Content */}
-        <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto px-6 pt-5 pb-4">
+        <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pt-5 pb-4">
           {!hasImage && (
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

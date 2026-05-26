@@ -15,18 +15,22 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    // Verify the record belongs to admin
-    const { data } = await serverDb
-      .collection("generations")
-      .doc(id)
-      .get();
-
-    if (!data || data.user_id !== "admin") {
-      return Response.json({ error: "无权删除此记录" }, { status: 403 });
+    // Clean up associated likes
+    try {
+      const { data: likes } = await serverDb
+        .collection("gallery_likes")
+        .where({ generation_id: id })
+        .get();
+      if (likes) {
+        for (const like of likes) {
+          await serverDb.collection("gallery_likes").doc(like._id).delete();
+        }
+      }
+    } catch {
+      // gallery_likes collection may not exist yet
     }
 
     await serverDb.collection("generations").doc(id).remove();
-
     return Response.json({ success: true });
   } catch (error) {
     console.error("Delete admin inspiration error:", error);

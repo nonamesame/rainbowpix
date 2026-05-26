@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import { Heart, Copy, Sparkles, Download, Eye, Loader2 } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
@@ -143,11 +144,18 @@ export default function InspirationDetailModal({
   return (
     <>
       <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto overscroll-contain">
           <DialogHeader>
             <DialogTitle>{item.title || "作品详情"}</DialogTitle>
             <DialogDescription>
-              {item.username || "匿名用户"} · {formatDate(item.created_at)}
+              <Link
+                href={`/profile/${item.user_id}`}
+                target="_blank"
+                className="hover:underline hover:text-[#7c3aed] transition-colors"
+              >
+                {item.username || "匿名用户"}
+              </Link>
+              <span> · {formatDate(item.created_at)}</span>
             </DialogDescription>
           </DialogHeader>
 
@@ -168,7 +176,7 @@ export default function InspirationDetailModal({
           <div className="space-y-2 text-sm">
             <div className="flex items-start gap-1">
               <span className="shrink-0 font-medium text-gray-700">提示词：</span>
-              <div className="flex-1 max-h-[15vh] overflow-y-auto">
+              <div className="flex-1 max-h-[15vh] overflow-y-auto overscroll-contain">
                 <span className="text-gray-600 break-all text-xs leading-relaxed">{item.prompt}</span>
               </div>
               <button

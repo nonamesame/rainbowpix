@@ -58,18 +58,7 @@ function truncate(text: string, max: number) {
 export default function GalleryClient({ initialItems, total: initialTotal }: Props) {
   const [items, setItems] = useState<Generation[]>(initialItems);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(initialTotal);
-
-  // Fetch fresh data on mount to bypass Next.js client-side router cache
-  useEffect(() => {
-    fetch("/api/gallery?page=1")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.items) setItems(d.items);
-        if (d.total != null) setTotal(d.total);
-      })
-      .catch(() => {});
-  }, []);
+  const [total, setTotal] = useState(initialTotal >= 0 ? initialTotal : items.length);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<Generation | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -79,15 +68,6 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
   const [fullscreen, setFullscreen] = useState(false);
   const [publishTitle, setPublishTitle] = useState("");
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
-
-  // Fetch total count client-side (non-blocking)
-  useEffect(() => {
-    if (initialTotal >= 0) return;
-    fetch("/api/gallery?page=1")
-      .then((r) => r.json())
-      .then((d) => setTotal(d.total ?? 0))
-      .catch(() => setTotal(items.length));
-  }, [initialTotal, items.length]);
 
   // Poll for new generation while pending on the generate page
   useEffect(() => {
@@ -373,7 +353,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setShowRefImage(false); } }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto overscroll-contain">
           {selected && (
             <>
               <DialogHeader>
@@ -400,7 +380,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
               <div className="space-y-2 text-sm">
                 <div className="flex items-start gap-1">
                   <span className="shrink-0 font-medium text-gray-700">提示词：</span>
-                  <div className="flex-1 max-h-[15vh] overflow-y-auto">
+                  <div className="flex-1 max-h-[15vh] overflow-y-auto overscroll-contain">
                     <span className="text-gray-600 break-all text-xs leading-relaxed">{selected.prompt}</span>
                   </div>
                   <button

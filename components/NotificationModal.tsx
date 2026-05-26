@@ -114,7 +114,7 @@ export default function NotificationModal({ notifications, initialNotification, 
           <div className="border-b border-gray-200 px-4 py-3">
             <span className="text-sm font-semibold text-gray-900">通知</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
             {loading ? (
               <div className="flex items-center justify-center py-8 text-sm text-gray-400">
                 加载中...
@@ -207,7 +207,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                   </span>
                 </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-6">
+              <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-6">
                 {selectedNotification.image && (
                   <img
                     src={selectedNotification.image}

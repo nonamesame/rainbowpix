@@ -123,9 +123,13 @@ export default function TopNav({
               target="_blank"
               className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50"
             >
-              <div className="flex size-8 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-[#7c3aed]">
-                {user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || user.phone?.charAt(0) || "U"}
-              </div>
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="头像" className="size-8 rounded-full object-cover" />
+              ) : (
+                <div className="flex size-8 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-[#7c3aed]">
+                  {user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || user.phone?.charAt(0) || "U"}
+                </div>
+              )}
               <span className="text-sm text-gray-600 max-w-[100px] truncate">
                 {user.username || user.email || user.phone || "用户"}
               </span>

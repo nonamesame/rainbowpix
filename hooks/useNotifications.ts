@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Notification } from "@/lib/notifications";
 
-const POLL_INTERVAL = 15_000; // 15秒轮询一次
+const POLL_INTERVAL = 60_000; // 60秒轮询一次
 
 export function useNotifications(uid: string | null) {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -94,18 +94,31 @@ export function useNotifications(uid: string | null) {
     if (!uid) return;
     fetchCount();
     fetchNotifications();
-    intervalRef.current = setInterval(fetchCount, POLL_INTERVAL);
 
-    // 页面重新可见时立即刷新未读数
+    // 页面可见时轮询，不可见时暂停
+    function startPolling() {
+      clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(fetchCount, POLL_INTERVAL);
+    }
+
+    function stopPolling() {
+      clearInterval(intervalRef.current);
+    }
+
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
         fetchCount();
+        startPolling();
+      } else {
+        stopPolling();
       }
     }
+
+    startPolling();
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(intervalRef.current);
+      stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [uid, fetchCount, fetchNotifications]);

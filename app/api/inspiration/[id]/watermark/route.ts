@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 import app from "@/lib/cloudbase/server";
@@ -28,7 +29,7 @@ export async function GET(
   const userPayload = request.cookies.get("tcb_user")?.value;
   if (userPayload) {
     try {
-      const user = JSON.parse(atob(userPayload));
+      const user = decodeUserCookie(userPayload);
       isOwner = user.uid === generation.user_id;
     } catch {}
   }

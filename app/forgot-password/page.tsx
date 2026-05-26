@@ -97,8 +97,12 @@ export default function ForgotPasswordPage() {
       toast.error("两次密码不一致");
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error("密码至少6位");
+    if (newPassword.length < 8 || newPassword.length > 64) {
+      toast.error("密码长度需为8-64位");
+      return;
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      toast.error("密码必须包含字母和数字");
       return;
     }
     if (!updateUserFn) return;
@@ -222,7 +226,7 @@ export default function ForgotPasswordPage() {
                   />
                   <Input
                     type="password"
-                    placeholder="设置新密码（至少6位）"
+                    placeholder="8-64位，需含字母和数字"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"

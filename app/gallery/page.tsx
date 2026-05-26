@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { serverDb } from "@/lib/cloudbase/server";
@@ -15,7 +16,7 @@ export default async function GalleryPage() {
 
   let user: { uid: string; email?: string };
   try {
-    user = JSON.parse(atob(userCookie));
+    user = decodeUserCookie(userCookie);
   } catch {
     redirect("/login");
   }

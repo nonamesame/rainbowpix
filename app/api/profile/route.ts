@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   let user: { uid: string; username?: string; email?: string; phone?: string };
   try {
-    user = JSON.parse(atob(userPayload));
+    user = decodeUserCookie(userPayload);
   } catch {
     return Response.json({ error: "登录信息无效" }, { status: 401 });
   }
@@ -76,7 +77,9 @@ export async function GET(request: NextRequest) {
       email: profile?.email || user.email || "",
       phone: profile?.phone || user.phone || "",
       bio: profile?.bio || "",
+      avatar_url: profile?.avatar_url || "",
       created_at: profile?.created_at || "",
+      show_liked: profile?.show_liked ?? false,
     });
   } catch (error) {
     // Fallback: return cookie data
@@ -86,7 +89,9 @@ export async function GET(request: NextRequest) {
       email: user.email || "",
       phone: user.phone || "",
       bio: "",
+      avatar_url: "",
       created_at: "",
+      show_liked: false,
     });
   }
 }
@@ -99,19 +104,19 @@ export async function PATCH(request: NextRequest) {
 
   let user: { uid: string; username?: string; email?: string; phone?: string };
   try {
-    user = JSON.parse(atob(userPayload));
+    user = decodeUserCookie(userPayload);
   } catch {
     return Response.json({ error: "登录信息无效" }, { status: 401 });
   }
 
   const body = await request.json();
-  const { username, bio } = body;
+  const { username, bio, show_liked, avatar_url } = body;
 
   // Validate username if provided
   if (username !== undefined) {
-    if (!/^[a-z][0-9a-z_-]{5,24}$/.test(username)) {
+    if (!/^[一-龥a-zA-Z0-9_-]{2,20}$/.test(username)) {
       return Response.json(
-        { error: "用户名格式不正确，需以小写字母开头，6-25位字母数字下划线连字符" },
+        { error: "用户名需2-20位，仅支持中英文、数字、下划线和横杠" },
         { status: 400 }
       );
     }
@@ -141,6 +146,8 @@ export async function PATCH(request: NextRequest) {
       const updates: Record<string, unknown> = {};
       if (username !== undefined) updates.username = username;
       if (bio !== undefined) updates.bio = bio;
+      if (show_liked !== undefined) updates.show_liked = !!show_liked;
+      if (avatar_url !== undefined) updates.avatar_url = avatar_url;
 
       if (profile) {
         await serverDb
@@ -187,6 +194,7 @@ export async function PATCH(request: NextRequest) {
       username: username !== undefined ? username : user.username,
       email: user.email,
       phone: user.phone,
+      avatar_url: avatar_url !== undefined ? avatar_url : (profile?.avatar_url || ""),
     };
 
     const cookiePayload = Buffer.from(JSON.stringify(updatedUser)).toString("base64");

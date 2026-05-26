@@ -5,7 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   Download, Loader2, ImageOff, Eye, Share2, Copy, Heart, Trash2,
-  Pencil, Check, X, LogOut, Shield,
+  Pencil, Check, X, LogOut, Shield, ZoomIn, ZoomOut,
 } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { models } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import { getAuth } from "@/lib/cloudbase/client";
 import type { TcbUser } from "@/lib/cloudbase/types";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
 
 interface Generation {
   _id: string;
@@ -39,7 +41,9 @@ interface Profile {
   email: string;
   phone: string;
   bio: string;
+  avatar_url: string;
   created_at: string;
+  show_liked?: boolean;
 }
 
 interface Props {
@@ -51,6 +55,8 @@ interface Props {
   publishedTotal: number;
   initialLiked: Generation[];
   likedTotal: number;
+  isOwner?: boolean;
+  publicUid?: string;
 }
 
 type Tab = "works" | "published" | "liked" | "settings";
@@ -88,10 +94,12 @@ function maskPhone(phone: string) {
 
 export default function ProfileClient({
   user, profile: initialProfile, initialWorks, worksTotal,
-  initialPublished, publishedTotal, initialLiked, likedTotal,
+  initialPublished, publishedTotal, initialLiked, likedTotal: initialLikedTotal,
+  isOwner = true, publicUid,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("works");
+  const [activeTab, setActiveTab] = useState<Tab>(isOwner ? "works" : "published");
   const [profile, setProfile] = useState(initialProfile);
+  const [savingShowLiked, setSavingShowLiked] = useState(false);
 
   // Works state
   const [works, setWorks] = useState<Generation[]>(initialWorks);
@@ -107,14 +115,16 @@ export default function ProfileClient({
 
   // Liked state
   const [liked, setLiked] = useState<Generation[]>(initialLiked);
+  const [likedTotal, setLikedTotal] = useState(initialLikedTotal);
   const [likedPage, setLikedPage] = useState(1);
-  const [likedHasMore, setLikedHasMore] = useState(likedTotal > 12);
+  const [likedHasMore, setLikedHasMore] = useState(initialLikedTotal > 12);
   const [loadingLiked, setLoadingLiked] = useState(false);
 
   // Detail modal
   const [selected, setSelected] = useState<Generation | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [showRefImage, setShowRefImage] = useState(false);
+  const [refImageLoading, setRefImageLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
@@ -132,17 +142,12 @@ export default function ProfileClient({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-
-  // Fetch fresh works on mount
-  useEffect(() => {
-    fetch("/api/gallery?page=1")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.items) setWorks(d.items);
-        if (d.total != null) setWorksHasMore(d.items.length < d.total);
-      })
-      .catch(() => {});
-  }, []);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   // Total likes calculation
   const totalLikes = published.reduce((sum, item) => sum + (item.likes_count || 0), 0);
@@ -168,7 +173,10 @@ export default function ProfileClient({
   async function loadMorePublished() {
     setLoadingPublished(true);
     try {
-      const res = await fetch(`/api/profile/published?page=${publishedPage + 1}`);
+      const url = isOwner
+        ? `/api/profile/published?page=${publishedPage + 1}`
+        : `/api/users/${publicUid}/published?page=${publishedPage + 1}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setPublished((prev) => [...prev, ...data.items]);
@@ -185,7 +193,10 @@ export default function ProfileClient({
   async function loadMoreLiked() {
     setLoadingLiked(true);
     try {
-      const res = await fetch(`/api/profile/liked?page=${likedPage + 1}`);
+      const url = isOwner
+        ? `/api/profile/liked?page=${likedPage + 1}`
+        : `/api/users/${publicUid}/liked?page=${likedPage + 1}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setLiked((prev) => [...prev, ...data.items]);
@@ -210,6 +221,15 @@ export default function ProfileClient({
             : i
         )
       );
+      setSelected((prev) =>
+        prev?._id === item._id
+          ? { ...prev, user_liked: data.liked, likes_count: data.likes_count }
+          : prev
+      );
+      if (!data.liked) {
+        setLiked((prev) => prev.filter((i) => i._id !== item._id));
+        setLikedTotal((prev) => Math.max(0, prev - 1));
+      }
     } catch {
       toast.error("操作失败");
     }
@@ -306,6 +326,24 @@ export default function ProfileClient({
   }
 
   // ======== Settings actions ========
+  async function saveShowLiked(value: boolean) {
+    setSavingShowLiked(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ show_liked: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setProfile((prev) => ({ ...prev, show_liked: value }));
+      toast.success("设置已保存");
+    } catch {
+      toast.error("保存失败，请稍后重试");
+    } finally {
+      setSavingShowLiked(false);
+    }
+  }
   async function saveBio() {
     setSavingBio(true);
     try {
@@ -327,8 +365,8 @@ export default function ProfileClient({
   }
 
   async function saveUsername() {
-    if (!/^[a-z][0-9a-z_-]{5,24}$/.test(usernameDraft)) {
-      toast.error("用户名格式不正确，需以小写字母开头，6-25位");
+    if (!/^[一-龥a-zA-Z0-9_-]{2,20}$/.test(usernameDraft)) {
+      toast.error("用户名需2-20位，仅支持中英文、数字、下划线和横杠");
       return;
     }
     setSavingUsername(true);
@@ -346,6 +384,10 @@ export default function ProfileClient({
       }
       setProfile((prev) => ({ ...prev, username: usernameDraft }));
       setEditingUsername(false);
+      // Notify opener tab to reload with new cookie
+      if (window.opener) {
+        window.opener.location.reload();
+      }
       toast.success("修改成功");
     } catch (e: any) {
       const msg = e?.message || "";
@@ -359,9 +401,111 @@ export default function ProfileClient({
     }
   }
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("图片大小不能超过 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("无法创建画布"));
+        ctx.drawImage(
+          image,
+          pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
+          0, 0, pixelCrop.width, pixelCrop.height,
+        );
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("裁剪失败"));
+        }, "image/jpeg", 0.9);
+      };
+      image.onerror = () => reject(new Error("图片加载失败"));
+      image.src = imageSrc;
+    });
+  }
+
+  async function handleCropConfirm() {
+    if (!cropImage || !croppedAreaPixels) return;
+    setUploadingAvatar(true);
+    try {
+      const blob = await getCroppedImg(cropImage, croppedAreaPixels);
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/profile/avatar", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      if (data.cookie) {
+        document.cookie = `tcb_user=${data.cookie}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      setProfile((prev) => ({ ...prev, avatar_url: data.avatar_url }));
+      setCropImage(null);
+      if (window.opener) {
+        window.opener.location.reload();
+      }
+      toast.success("头像更新成功");
+    } catch (err: any) {
+      toast.error(err?.message || "上传失败");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleDeleteAvatar() {
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch("/api/profile/avatar", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar_url: profile.avatar_url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      if (data.cookie) {
+        document.cookie = `tcb_user=${data.cookie}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      setProfile((prev) => ({ ...prev, avatar_url: "" }));
+      if (window.opener) {
+        window.opener.location.reload();
+      }
+      toast.success("头像已删除");
+    } catch {
+      toast.error("删除失败");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   async function handleChangePassword() {
-    if (newPassword.length < 6) {
-      toast.error("新密码至少6位");
+    if (newPassword.length < 8 || newPassword.length > 64) {
+      toast.error("新密码长度需为8-64位");
+      return;
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      toast.error("新密码必须包含字母和数字");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -406,30 +550,40 @@ export default function ProfileClient({
   const avatarChar = profile.username?.charAt(0).toUpperCase()
     || profile.email?.charAt(0).toUpperCase()
     || "U";
+  const displayAvatar = avatarPreview || profile.avatar_url || "";
 
-  const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: "works", label: "我的作品", count: worksTotal },
-    { key: "published", label: "已发布", count: publishedTotal },
-    { key: "liked", label: "我点赞过", count: likedTotal },
-    { key: "settings", label: "账号设置" },
-  ];
+  const tabs: { key: Tab; label: string; count?: number }[] = isOwner
+    ? [
+        { key: "works", label: "我的作品", count: worksTotal },
+        { key: "published", label: "已发布", count: publishedTotal },
+        { key: "liked", label: "我点赞过", count: likedTotal },
+        { key: "settings", label: "账号设置" },
+      ]
+    : [
+        { key: "published", label: "发布的作品", count: publishedTotal },
+        ...(profile.show_liked ? [{ key: "liked" as Tab, label: "TA 点赞过", count: likedTotal }] : []),
+      ];
 
   return (
     <div className="min-h-screen">
       <div className="px-4 py-6 md:px-6 md:max-w-4xl md:mx-auto">
         {/* Profile Header */}
         <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          <div className="flex size-16 items-center justify-center rounded-full bg-purple-100 text-2xl font-bold text-[#7c3aed] md:size-20 md:text-3xl">
-            {avatarChar}
-          </div>
+          {displayAvatar ? (
+            <img src={displayAvatar} alt={displayName} className="size-16 rounded-full object-cover md:size-20" />
+          ) : (
+            <div className="flex size-16 items-center justify-center rounded-full bg-purple-100 text-2xl font-bold text-[#7c3aed] md:size-20 md:text-3xl">
+              {avatarChar}
+            </div>
+          )}
           <div className="flex-1 text-center sm:text-left">
             <h1 className="text-xl font-bold text-gray-900 md:text-2xl">{displayName}</h1>
             <p className="mt-1 text-sm text-gray-500">
               {profile.bio || "这个人很懒，什么都没写"}
             </p>
             <div className="mt-3 flex justify-center gap-6 text-sm text-gray-500 sm:justify-start">
-              <span><strong className="text-gray-900">{worksTotal}</strong> 作品</span>
-              <span><strong className="text-gray-900">{publishedTotal}</strong> 已发布</span>
+              {isOwner && <span><strong className="text-gray-900">{worksTotal}</strong> 作品</span>}
+              <span><strong className="text-gray-900">{publishedTotal}</strong> {isOwner ? "已发布" : "发布的作品"}</span>
               <span><strong className="text-gray-900">{totalLikes}</strong> 获赞</span>
             </div>
           </div>
@@ -525,7 +679,8 @@ export default function ProfileClient({
               <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                 <Share2 className="mb-4 size-12" />
                 <p className="text-sm">还没有发布作品</p>
-                <p className="mt-1 text-xs text-gray-400">在画廊中点击发布即可展示到这里</p>
+                {!isOwner && <p className="mt-1 text-xs text-gray-400">该用户还没有发布任何作品</p>}
+                {isOwner && <p className="mt-1 text-xs text-gray-400">在画廊中点击发布即可展示到这里</p>}
               </div>
             ) : (
               <>
@@ -557,10 +712,14 @@ export default function ProfileClient({
                         <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                           {getModelName(item.model)}
                         </span>
-                        <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-                          <Heart className={`size-3 ${item.user_liked ? "fill-red-500 text-red-500" : ""}`} />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (!isOwner) handleLike(item); }}
+                          className={`flex items-center gap-0.5 text-[10px] transition-colors ${!isOwner ? "cursor-pointer hover:text-red-500" : "cursor-default"} ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
+                          disabled={isOwner}
+                        >
+                          <Heart className={`size-3 ${item.user_liked ? "fill-red-500" : ""}`} />
                           {item.likes_count || 0}
-                        </span>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -584,10 +743,16 @@ export default function ProfileClient({
               <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                 <Heart className="mb-4 size-12" />
                 <p className="text-sm">还没有点赞过作品</p>
-                <p className="mt-1 text-xs text-gray-400">去灵感大厅发现喜欢的作品吧</p>
-                <Button className="mt-4" onClick={() => (window.location.href = "/gallery")}>
-                  去看看
-                </Button>
+                {isOwner ? (
+                  <>
+                    <p className="mt-1 text-xs text-gray-400">去灵感大厅发现喜欢的作品吧</p>
+                    <Button className="mt-4" onClick={() => (window.location.href = "/gallery")}>
+                      去看看
+                    </Button>
+                  </>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-400">该用户还没有点赞过任何作品</p>
+                )}
               </div>
             ) : (
               <>
@@ -619,8 +784,8 @@ export default function ProfileClient({
                         <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                           {getModelName(item.model)}
                         </span>
-                        <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-                          <Heart className="size-3 fill-red-500 text-red-500" />
+                        <span className="flex items-center gap-0.5 text-[10px] text-red-500">
+                          <Heart className="size-3 fill-red-500" />
                           {item.likes_count || 0}
                         </span>
                       </div>
@@ -642,6 +807,44 @@ export default function ProfileClient({
         {/* ======== Settings Tab ======== */}
         {activeTab === "settings" && (
           <div className="space-y-4">
+            {/* Avatar */}
+            <div className="rounded-xl bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">头像</span>
+                <div className="flex gap-2">
+                  <label className="cursor-pointer text-sm text-[#7c3aed] hover:underline">
+                    <Pencil className="inline size-3.5 mr-1" />更换
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={uploadingAvatar}
+                    />
+                  </label>
+                  {profile.avatar_url && (
+                    <button onClick={handleDeleteAvatar} className="text-sm text-red-500 hover:underline">
+                      <Trash2 className="inline size-3.5 mr-1" />删除
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {displayAvatar ? (
+                  <img src={displayAvatar} alt="头像" className="size-16 rounded-full object-cover" />
+                ) : (
+                  <div className="flex size-16 items-center justify-center rounded-full bg-purple-100 text-2xl font-bold text-[#7c3aed]">
+                    {avatarChar}
+                  </div>
+                )}
+                <div className="text-xs text-gray-400">
+                  <p>支持 JPG、PNG、GIF、WebP</p>
+                  <p>大小不超过 2MB</p>
+                </div>
+                {uploadingAvatar && <Loader2 className="size-5 animate-spin text-[#7c3aed]" />}
+              </div>
+            </div>
+
             {/* Username */}
             <div className="rounded-xl bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
@@ -667,7 +870,7 @@ export default function ProfileClient({
                   value={usernameDraft}
                   onChange={(e) => setUsernameDraft(e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-                  placeholder="小写字母开头，6-25位"
+                  placeholder="2-20位，支持中英文、数字、下划线、横杠"
                 />
               ) : (
                 <p className="text-sm text-gray-500">{profile.username || "未设置"}</p>
@@ -705,6 +908,37 @@ export default function ProfileClient({
               ) : (
                 <p className="text-sm text-gray-500">{profile.bio || "暂无简介"}</p>
               )}
+            </div>
+
+            {/* Show liked */}
+            <div className="rounded-xl bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-purple-50">
+                    <Heart className="size-4 text-[#7c3aed]" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">公开点赞作品</span>
+                    <p className="mt-0.5 text-xs text-gray-400">允许其他用户在你的主页查看你点赞过的作品</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={profile.show_liked ?? false}
+                  disabled={savingShowLiked}
+                  onClick={() => saveShowLiked(!(profile.show_liked ?? false))}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 ${
+                    profile.show_liked ? "bg-[#7c3aed]" : "bg-gray-200"
+                  } ${savingShowLiked ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-md transition-all duration-300 ease-in-out ${
+                      profile.show_liked ? "translate-x-[24px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
 
             {/* Password */}
@@ -751,7 +985,7 @@ export default function ProfileClient({
 
       {/* ======== Detail Dialog ======== */}
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setShowRefImage(false); } }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto overscroll-contain">
           {selected && (
             <>
               <DialogHeader>
@@ -777,7 +1011,7 @@ export default function ProfileClient({
               <div className="space-y-2 text-sm">
                 <div className="flex items-start gap-1">
                   <span className="shrink-0 font-medium text-gray-700">提示词：</span>
-                  <div className="flex-1 max-h-[15vh] overflow-y-auto">
+                  <div className="flex-1 max-h-[15vh] overflow-y-auto overscroll-contain">
                     <span className="text-gray-600 break-all text-xs leading-relaxed">{selected.prompt}</span>
                   </div>
                   <button
@@ -807,23 +1041,28 @@ export default function ProfileClient({
                   <span className="text-gray-600">{getModelName(selected.model)}</span>
                 </div>
                 {selected.likes_count != null && (
-                  <div className="flex items-center gap-1">
-                    <Heart className={`size-4 ${selected.user_liked ? "fill-red-500 text-red-500" : "text-gray-400"}`} />
+                  <button
+                    onClick={() => handleLike(selected)}
+                    className={`flex items-center gap-1 cursor-pointer transition-colors hover:text-red-500 ${selected.user_liked ? "text-red-500" : "text-gray-400"}`}
+                  >
+                    <Heart className={`size-4 ${selected.user_liked ? "fill-red-500" : ""}`} />
                     <span className="text-gray-600">{selected.likes_count} 赞</span>
-                  </div>
+                  </button>
                 )}
               </div>
 
               <DialogFooter>
-                <Button variant="destructive" onClick={() => handleDelete(selected)} disabled={deleting}>
-                  {deleting ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Trash2 className="mr-1.5 size-4" />}
-                  删除
-                </Button>
+                {isOwner && (
+                  <Button variant="destructive" onClick={() => handleDelete(selected)} disabled={deleting}>
+                    {deleting ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Trash2 className="mr-1.5 size-4" />}
+                    删除
+                  </Button>
+                )}
                 <Button onClick={() => handleDownload(selected)}>
                   <Download className="mr-1.5 size-4" />
                   下载
                 </Button>
-                {selected.published ? (
+                {isOwner && (selected.published ? (
                   <Button variant="outline" onClick={() => handleUnpublish(selected)} disabled={publishing}>
                     {publishing ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Share2 className="mr-1.5 size-4" />}
                     取消发布
@@ -833,7 +1072,7 @@ export default function ProfileClient({
                     <Share2 className="mr-1.5 size-4" />
                     发布
                   </Button>
-                )}
+                ))}
               </DialogFooter>
             </>
           )}
@@ -841,15 +1080,29 @@ export default function ProfileClient({
       </Dialog>
 
       {/* Reference image dialog */}
-      <Dialog open={showRefImage} onOpenChange={(open) => { if (!open) setShowRefImage(false); }}>
+      <Dialog open={showRefImage} onOpenChange={(open) => {
+        if (!open) setShowRefImage(false);
+        if (open) setRefImageLoading(true);
+      }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>参考图</DialogTitle>
           </DialogHeader>
           {selected?.reference_image_url && (
             <div className="overflow-hidden rounded-xl bg-gray-100">
+              {refImageLoading && (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="size-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-sm text-gray-400">加载中...</span>
+                </div>
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={toProxyUrl(selected.reference_image_url)} alt="参考图" className="w-full object-contain" />
+              <img
+                src={toProxyUrl(selected.reference_image_url)}
+                alt="参考图"
+                className={`w-full object-contain ${refImageLoading ? "hidden" : ""}`}
+                onLoad={() => setRefImageLoading(false)}
+              />
             </div>
           )}
         </DialogContent>
@@ -912,7 +1165,7 @@ export default function ProfileClient({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-                placeholder="至少6位"
+                placeholder="8-64位，需含字母和数字"
               />
             </div>
             <div>
@@ -932,6 +1185,85 @@ export default function ProfileClient({
               确认修改
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Crop dialog */}
+      <Dialog open={!!cropImage} onOpenChange={(open) => { if (!open) setCropImage(null); }}>
+        <DialogContent className="sm:max-w-sm rounded-2xl p-0 overflow-hidden border-0 shadow-2xl" showCloseButton={false}>
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <DialogTitle className="text-base font-semibold">调整头像</DialogTitle>
+            <button onClick={() => setCropImage(null)} className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <X className="size-5" />
+            </button>
+          </div>
+          <div className="relative mx-4 h-[320px] overflow-hidden rounded-xl bg-gray-100 select-none">
+            {cropImage && (
+              <Cropper
+                image={cropImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                restrictPosition={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_croppedArea, croppedAreaPixels) => setCroppedAreaPixels(croppedAreaPixels)}
+                style={{
+                  cropAreaStyle: {
+                    border: "2.5px solid rgba(255,255,255,0.9)",
+                    borderRadius: "50%",
+                    boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+                  },
+                  containerStyle: {
+                    borderRadius: "0.75rem",
+                  },
+                }}
+              />
+            )}
+          </div>
+          <div className="px-5 pt-4 pb-1">
+            <p className="mb-2 text-center text-[11px] text-gray-400">拖拽图片调整位置</p>
+            <div className="flex items-center gap-3">
+              <ZoomOut className="size-4 shrink-0 text-gray-400" />
+              <div className="relative h-1.5 flex-1 rounded-full bg-gray-200">
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full bg-[#7c3aed] transition-all"
+                  style={{ width: `${((zoom - 1) / 2) * 100}%` }}
+                />
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="absolute inset-0 w-full cursor-pointer opacity-0"
+                />
+                <div
+                  className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md ring-2 ring-[#7c3aed] pointer-events-none transition-all"
+                  style={{ left: `${((zoom - 1) / 2) * 100}%` }}
+                />
+              </div>
+              <ZoomIn className="size-4 shrink-0 text-gray-400" />
+            </div>
+          </div>
+          <div className="flex gap-3 px-5 py-4">
+            <button
+              onClick={() => setCropImage(null)}
+              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 active:bg-gray-100"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleCropConfirm}
+              disabled={uploadingAvatar}
+              className="flex-1 rounded-xl bg-[#7c3aed] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6d28d9] active:bg-[#5b21b6] disabled:opacity-50"
+            >
+              {uploadingAvatar ? <Loader2 className="mr-1.5 inline size-4 animate-spin" /> : <Check className="mr-1.5 inline size-4" />}
+              确认
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 

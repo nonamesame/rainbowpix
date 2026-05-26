@@ -3,6 +3,7 @@ export interface TcbUser {
   email?: string;
   phone?: string;
   username?: string;
+  avatar_url?: string;
 }
 
 export interface UserProfile {

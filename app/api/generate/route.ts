@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest, after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { serverDb } from "@/lib/cloudbase/server";
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     let user: { uid: string; email?: string };
     try {
-      user = JSON.parse(atob(userPayload));
+      user = decodeUserCookie(userPayload);
     } catch {
       return Response.json({ error: "登录信息无效" }, { status: 401 });
     }
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
       published: false,
       watermark_enabled: false,
       likes_count: 0,
+      source: "ai",
       width,
       height,
     });

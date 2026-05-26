@@ -46,13 +46,29 @@ export async function saveCookiesAndRedirect(
   if (loginState) {
     const { accessToken } = await auth.getAccessToken();
     const userInfo = loginState.user;
+
+    // Try to get avatar and username from profile
+    let avatar_url = "";
+    let dbUsername = "";
+    try {
+      const profileRes = await fetch("/api/profile");
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        avatar_url = profileData.avatar_url || "";
+        dbUsername = profileData.username || "";
+      }
+    } catch {}
+
     const userPayload = btoa(
-      JSON.stringify({
-        uid: userInfo.uid,
-        email: userInfo.email,
-        phone: userInfo.phoneNumber,
-        username: userInfo.username,
-      })
+      encodeURIComponent(
+        JSON.stringify({
+          uid: userInfo.uid,
+          email: userInfo.email,
+          phone: userInfo.phoneNumber,
+          username: dbUsername || userInfo.username,
+          avatar_url,
+        })
+      )
     );
     document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
     document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;

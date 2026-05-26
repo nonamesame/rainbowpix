@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
 
   let user: { uid: string; username?: string; email?: string; phone?: string };
   try {
-    user = JSON.parse(atob(userPayload));
+    user = decodeUserCookie(userPayload);
   } catch {
     return Response.json({ error: "登录信息无效" }, { status: 401 });
   }

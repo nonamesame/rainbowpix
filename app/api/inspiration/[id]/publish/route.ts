@@ -43,6 +43,23 @@ export async function POST(
 
   await serverDb.collection("generations").doc(generationId).update(updateFields);
 
+  // When unpublishing, clean up associated likes
+  if (!published) {
+    try {
+      const { data: likes } = await serverDb
+        .collection("gallery_likes")
+        .where({ generation_id: generationId })
+        .get();
+      if (likes) {
+        for (const like of likes) {
+          await serverDb.collection("gallery_likes").doc(like._id).delete();
+        }
+      }
+    } catch {
+      // gallery_likes collection may not exist yet
+    }
+  }
+
   return Response.json({
     published: !!published,
     watermark_enabled: published ? !!watermark_enabled : data[0].watermark_enabled,

@@ -1,10 +1,15 @@
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 import app from "@/lib/cloudbase/server";
+import { createHash } from "crypto";
 
 function checkAdmin(request: NextRequest) {
   const adminKey = request.headers.get("x-admin-key");
   return adminKey === process.env.ADMIN_API_KEY;
+}
+
+function generateAuthorUid(authorName: string): string {
+  return "author_" + createHash("md5").update(authorName).digest("hex").slice(0, 16);
 }
 
 export async function GET(request: NextRequest) {
@@ -13,15 +18,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Query both old "admin" uid and new "author_xxx" format
     const { data } = await serverDb
       .collection("generations")
-      .where({ user_id: "admin" })
+      .where({
+        user_id: /(^admin$|^author_)/,
+      })
       .field([
         "_id", "prompt", "model", "image_url", "title", "username",
         "created_at", "likes_count", "published",
       ])
       .orderBy("created_at", "desc")
-      .limit(50)
+      .limit(100)
       .get();
 
     return Response.json({ items: data || [] });
@@ -95,9 +103,12 @@ export async function POST(request: NextRequest) {
     const imageUrl = `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
 
     // Create generation record
+    const authorName = author || "匿名用户";
+    const authorUid = generateAuthorUid(authorName);
+
     const { id } = await serverDb.collection("generations").add({
-      user_id: "admin",
-      username: author || "匿名用户",
+      user_id: authorUid,
+      username: authorName,
       prompt: prompt.trim(),
       model,
       title: title.trim() || null,
@@ -105,6 +116,7 @@ export async function POST(request: NextRequest) {
       published: true,
       watermark_enabled: false,
       likes_count: 0,
+      source: "admin",
       reference_image_url: null,
       created_at: new Date().toISOString(),
     });

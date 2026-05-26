@@ -1,8 +1,9 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { cookies } from "next/headers";
 import { serverDb } from "@/lib/cloudbase/server";
 import InspirationGalleryClient from "@/components/InspirationGalleryClient";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
   // Optional: read user cookie for like status
@@ -11,28 +12,29 @@ export default async function Home() {
   const userPayload = cookieStore.get("tcb_user")?.value;
   if (userPayload) {
     try {
-      const user = JSON.parse(atob(userPayload));
+      const user = decodeUserCookie(userPayload);
       currentUserId = user.uid;
     } catch {}
   }
 
-  // Fetch first page of published generations
-  const { data } = await serverDb
-    .collection("generations")
-    .where({ published: true })
-    .field([
-      "prompt", "model", "image_url", "reference_image_url",
-      "created_at", "user_id", "username", "likes_count",
-      "watermark_enabled", "title",
-    ])
-    .orderBy("created_at", "desc")
-    .limit(20)
-    .get();
-
-  const { total } = await serverDb
-    .collection("generations")
-    .where({ published: true })
-    .count();
+  // Fetch first page of published generations and total count in parallel
+  const [{ data }, { total }] = await Promise.all([
+    serverDb
+      .collection("generations")
+      .where({ published: true })
+      .field([
+        "prompt", "model", "image_url", "reference_image_url",
+        "created_at", "user_id", "username", "likes_count",
+        "watermark_enabled", "title",
+      ])
+      .orderBy("created_at", "desc")
+      .limit(20)
+      .get(),
+    serverDb
+      .collection("generations")
+      .where({ published: true })
+      .count(),
+  ]);
 
   let items = (data || []).map((item: any) => ({
     ...item,

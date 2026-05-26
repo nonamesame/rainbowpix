@@ -8,23 +8,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 总生成数
+    // 总用户数（从 users 集合查询，不算后台创建的作者）
+    let totalUsers = 0;
+    try {
+      const usersResult = await serverDb.collection("users").count();
+      totalUsers = usersResult?.total ?? 0;
+    } catch {
+      totalUsers = 0;
+    }
+
+    // 总生成数（AI 生成的，兼容旧数据：没有 source 字段的也算 AI 生成）
     const { total: totalGenerations } = await serverDb
       .collection("generations")
+      .where({ $or: [{ source: "ai" }, { source: "" }, { source: null }] })
       .count();
 
-    // 获取所有生成记录的 user_id
-    const { data: allGenerations } = await serverDb
-      .collection("generations")
-      .field({ user_id: true })
-      .limit(10000)
-      .get();
-
-    const allUserIds = new Set((allGenerations || []).map((g: any) => g.user_id));
-    const totalUsers = allUserIds.size;
-
     // 今日统计 - UTC+8 时区
-    // 数据库存 UTC ISO 字符串，需要算出 UTC+8 今天 00:00 对应的 UTC 时间
     const now = new Date();
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Shanghai",
@@ -32,19 +31,21 @@ export async function GET(request: NextRequest) {
     }).formatToParts(now);
     const g = (t: string) => parts.find((x) => x.type === t)!.value;
     const todayDate = `${g("year")}-${g("month")}-${g("day")}`;
-    // +08:00 后缀让 Date 正确解析为 UTC+8 午夜，.toISOString() 转成 UTC
     const todayStartISO = new Date(`${todayDate}T00:00:00+08:00`).toISOString();
     const tomorrowDate = new Date(`${todayDate}T00:00:00+08:00`);
     tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
     const tomorrowStartISO = tomorrowDate.toISOString();
 
-    // 今日生成数
+    // 今日生成数（AI 生成的，兼容旧数据）
     const { total: todayGenerations } = await serverDb
       .collection("generations")
-      .where({ created_at: { $gte: todayStartISO, $lt: tomorrowStartISO } })
+      .where({
+        $or: [{ source: "ai" }, { source: "" }, { source: null }],
+        created_at: { $gte: todayStartISO, $lt: tomorrowStartISO },
+      })
       .count();
 
-    // 今日新增用户（从 users 集合查询）
+    // 今日新增用户
     let todayNewUsers = 0;
     try {
       const r = await serverDb
@@ -53,7 +54,6 @@ export async function GET(request: NextRequest) {
         .count();
       todayNewUsers = r?.total ?? 0;
     } catch {
-      // users 集合可能还不存在
       todayNewUsers = 0;
     }
 

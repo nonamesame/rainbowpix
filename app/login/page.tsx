@@ -214,16 +214,20 @@ export default function LoginPage() {
       toast.error("请填写完整信息");
       return;
     }
-    if (!/^[a-z][0-9a-z_-]{5,24}$/.test(regUsername)) {
-      toast.error("用户名格式：小写字母开头，6-25位，只含字母/数字/下划线/横杠");
+    if (!/^[一-龥a-zA-Z0-9_-]{2,20}$/.test(regUsername)) {
+      toast.error("用户名需2-20位，仅支持中英文、数字、下划线和横杠");
       return;
     }
     if (regPassword !== regConfirmPassword) {
       toast.error("两次密码不一致");
       return;
     }
-    if (regPassword.length < 6) {
-      toast.error("密码至少6位");
+    if (regPassword.length < 8 || regPassword.length > 64) {
+      toast.error("密码长度需为8-64位");
+      return;
+    }
+    if (!/[a-zA-Z]/.test(regPassword) || !/[0-9]/.test(regPassword)) {
+      toast.error("密码必须包含字母和数字");
       return;
     }
     setLoading(true);
@@ -455,14 +459,14 @@ export default function LoginPage() {
                 <form onSubmit={handleRegister} className="flex flex-col gap-4">
                   <Input
                     type="text"
-                    placeholder="用户名（小写字母开头，6-25位，含字母/数字/下划线/横杠）"
+                    placeholder="2-20位，支持中英文、数字、下划线、横杠"
                     value={regUsername}
-                    onChange={(e) => setRegUsername(e.target.value.toLowerCase())}
+                    onChange={(e) => setRegUsername(e.target.value)}
                     className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
                   />
                   <Input
                     type="password"
-                    placeholder="设置密码（至少6位）"
+                    placeholder="8-64位，需含字母和数字"
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"

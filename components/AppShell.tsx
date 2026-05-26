@@ -1,5 +1,6 @@
 "use client";
 
+import { decodeUserCookie } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { TcbUser } from "@/lib/cloudbase/types";
@@ -17,34 +18,78 @@ interface Announcement {
 }
 
 interface Props {
-  user: TcbUser | null;
   children: React.ReactNode;
 }
 
 const STANDALONE_PATHS = ["/login", "/forgot-password", "/terms", "/privacy", "/complaint"];
 const NO_ANNOUNCEMENT_PATHS = ["/profile"];
 
-export default function AppShell({ user, children }: Props) {
+export default function AppShell({ children }: Props) {
   const pathname = usePathname();
+  const [user, setUser] = useState<TcbUser | null>(null);
   const {
     unreadCount, notifications, loading: notificationsLoading,
     fetchNotifications, markRead, markAllRead, deleteNotification,
   } = useNotifications(user?.uid || null);
+
+  useEffect(() => {
+    function refreshUser() {
+      const match = document.cookie.match(/tcb_user=([^;]+)/);
+      if (match) {
+        try {
+          const userData = decodeUserCookie(match[1]);
+          setUser(userData);
+          // Fetch fresh profile data to get username and avatar_url
+          fetch("/api/profile")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.username || data.avatar_url) {
+                setUser((prev) => prev ? {
+                  ...prev,
+                  username: data.username || prev.username,
+                  avatar_url: data.avatar_url || prev.avatar_url,
+                } : prev);
+              }
+            })
+            .catch(() => {});
+        } catch {}
+      } else {
+        setUser(null);
+      }
+    }
+    refreshUser();
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === "user-updated" && e.data.user) {
+        setUser(e.data.user);
+      }
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key === "user-updated") refreshUser();
+    }
+    window.addEventListener("message", onMessage);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", refreshUser);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", refreshUser);
+    };
+  }, []);
+
   const isStandalone = STANDALONE_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
-  const [prevUid, setPrevUid] = useState<string | null>(user?.uid || null);
+  const [announcementKey, setAnnouncementKey] = useState(0);
 
   useEffect(() => {
-    if (user?.uid !== prevUid) {
-      setAnnouncements([]);
+    if (user?.uid) {
       setAnnouncementDismissed(false);
-      setPrevUid(user?.uid || null);
+      setAnnouncementKey((k) => k + 1);
     }
-  }, [user?.uid, prevUid]);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user || isStandalone || announcementDismissed) return;
@@ -69,7 +114,7 @@ export default function AppShell({ user, children }: Props) {
 
     checkAnnouncement();
     return () => { cancelled = true; };
-  }, [user?.uid, isStandalone, announcementDismissed]);
+  }, [user?.uid, isStandalone, announcementDismissed, announcementKey]);
 
   function handleDismissAnnouncement() {
     setAnnouncements([]);

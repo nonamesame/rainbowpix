@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   let userId: string | null = null;
   if (userPayload) {
     try {
-      const user = JSON.parse(atob(userPayload));
+      const user = decodeUserCookie(userPayload);
       userId = user.uid || null;
     } catch {
       // ignore

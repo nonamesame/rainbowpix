@@ -1,3 +1,4 @@
+import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   let user: { uid: string };
   try {
-    user = JSON.parse(atob(userPayload));
+    user = decodeUserCookie(userPayload);
   } catch {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
