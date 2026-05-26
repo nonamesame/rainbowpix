@@ -1,7 +1,7 @@
 export default function GalleryLoading() {
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-6 md:px-6">
+      <div className="px-4 py-6 md:px-8">
         <div className="mb-6 flex items-baseline gap-2">
           <div className="h-7 w-32 animate-pulse rounded bg-gray-200" />
           <div className="h-4 w-10 animate-pulse rounded bg-gray-200" />

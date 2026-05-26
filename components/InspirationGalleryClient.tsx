@@ -108,7 +108,7 @@ export default function InspirationGalleryClient({
             </p>
           </div>
           <Link href="/generate">
-            <Button className="bg-[#7c3aed] hover:bg-[#6d28d9]">
+            <Button className="bg-violet-600 hover:bg-violet-700">
               <Palette className="mr-1.5 size-4" />
               AI绘画
             </Button>

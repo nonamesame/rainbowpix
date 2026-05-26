@@ -393,218 +393,225 @@ export default function GeneratePageClient({
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-6 md:px-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900 md:text-2xl">AI 绘画</h1>
-          <p className="mt-1 text-sm text-gray-500">输入提示词，让AI为你创作</p>
-        </div>
-
-        <Card className="rounded-2xl bg-white shadow-md">
-          <CardContent className="flex flex-col gap-4 p-4 md:gap-5 md:p-6">
-            {/* Model selector */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                模型
-              </label>
-              <Select value={model} onValueChange={handleModelChange}>
-                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}{m.supportsReferenceImage ? "（支持图生图）" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Reference image upload (only for models that support it) */}
-            {currentModel?.supportsReferenceImage && (
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                  参考图（可选，最多 {currentModel.maxReferenceImages} 张）
-                </label>
-                {referencePreviews.length > 0 && (
-                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {referencePreviews.map((src, i) => (
-                      <div key={i} className="relative">
+      <div className="px-4 py-6 md:px-8">
+        {/* Desktop: two-column layout */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_400px] gap-6 items-start">
+          {/* Left: Form */}
+          <div className="flex flex-col gap-4">
+            {/* Prompt input - prominent */}
+            <div className="rounded-2xl bg-white p-4 shadow-sm md:p-5">
+              <div className="flex gap-3">
+                {/* Reference image upload trigger */}
+                {currentModel?.supportsReferenceImage && (
+                  <div className="shrink-0">
+                    {referencePreviews.length > 0 ? (
+                      <div className="relative size-16 overflow-hidden rounded-xl border border-gray-200">
                         <img
-                          src={src}
-                          alt={`参考图 ${i + 1}`}
-                          className="aspect-square w-full rounded-xl border border-gray-200 object-cover"
+                          src={referencePreviews[0]}
+                          alt="参考图"
+                          className="h-full w-full object-cover"
                         />
                         <button
                           type="button"
-                          onClick={() => removeReferenceImage(i)}
-                          className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
+                          onClick={() => removeReferenceImage(0)}
+                          className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
                         >
-                          <X className="size-3" />
+                          <X className="size-2.5" />
                         </button>
+                        {referencePreviews.length > 1 && (
+                          <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 py-0.5 text-[8px] text-white">
+                            +{referencePreviews.length - 1}
+                          </span>
+                        )}
                       </div>
-                    ))}
+                    ) : (
+                      <label
+                        onDrop={handleReferenceDrop}
+                        onDragOver={handleDragOver}
+                        onDragEnter={handleDragOver}
+                        className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 transition-colors hover:border-violet-300 hover:bg-violet-50"
+                      >
+                        <ImagePlus className="size-5 text-gray-400" />
+                        <span className="mt-0.5 text-[9px] text-gray-400">参考图</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleReferenceImageChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
                 )}
-                {referenceImages.length < currentModel.maxReferenceImages && (
-                  <label
-                    onDrop={handleReferenceDrop}
-                    onDragOver={handleDragOver}
-                    onDragEnter={handleDragOver}
-                    className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 p-4 transition-colors hover:border-purple-300 hover:bg-purple-50"
-                  >
-                    <ImagePlus className="mb-1 size-6 text-gray-400" />
-                    <span className="text-sm text-gray-500">点击或拖拽上传参考图</span>
-                    <span className="mt-0.5 text-xs text-gray-400">
-                      还可添加 {currentModel.maxReferenceImages - referenceImages.length} 张，支持 JPG、PNG
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleReferenceImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-              </div>
-            )}
 
-            {/* Prompt */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                提示词
-              </label>
-              <textarea
-                value={prompt}
-                onChange={(e) => { setPrompt(e.target.value); setPromptError(null); }}
-                placeholder="描述你想要的画面..."
-                className="h-28 w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 md:h-32"
-              />
+                {/* Prompt textarea */}
+                <div className="flex-1">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => { setPrompt(e.target.value); setPromptError(null); }}
+                    placeholder="描述你想要的画面..."
+                    className="h-24 w-full resize-none rounded-xl border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-gray-400 md:h-28"
+                  />
+                </div>
+              </div>
+
               {promptError && (
                 <p className="mt-1.5 text-xs text-red-500">{promptError}</p>
               )}
+
+              {/* Toolbar row: model + ratio + generate */}
+              <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+                <Select value={model} onValueChange={handleModelChange}>
+                  <SelectTrigger className="h-8 w-auto rounded-lg border-gray-200 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex gap-1">
+                  {ASPECT_RATIOS.map((ratio) => (
+                    <button
+                      key={ratio}
+                      type="button"
+                      onClick={() => setSize(ratio)}
+                      disabled={!supportedRatios.includes(ratio)}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-all ${
+                        size === ratio
+                          ? "bg-violet-50 text-violet-700"
+                          : supportedRatios.includes(ratio)
+                            ? "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                            : "cursor-not-allowed text-gray-300"
+                      }`}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1" />
+
+                <Button
+                  onClick={handleGenerate}
+                  disabled={loading || !prompt.trim()}
+                  size="sm"
+                  className="h-8 rounded-lg bg-violet-600 px-4 text-xs font-medium text-white hover:bg-violet-700"
+                >
+                  {loading ? (
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                  ) : null}
+                  {loading ? "生成中" : "生成"}
+                </Button>
+              </div>
             </div>
 
-            {/* Size selector */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                尺寸
-              </label>
-              <div className="flex gap-2">
-                {ASPECT_RATIOS.map((ratio) => (
-                  <button
-                    key={ratio}
-                    type="button"
-                    onClick={() => setSize(ratio)}
-                    disabled={!supportedRatios.includes(ratio)}
-                    className={`flex-1 rounded-xl border px-2 py-2.5 text-sm font-medium transition-all ${
-                      size === ratio
-                        ? "border-purple-400 bg-purple-50 text-purple-700"
-                        : supportedRatios.includes(ratio)
-                          ? "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                          : "cursor-not-allowed border-gray-100 text-gray-300"
-                    }`}
-                  >
-                    {ratio}
-                  </button>
+            {/* Reference images list (if more than 1) */}
+            {referencePreviews.length > 1 && currentModel?.supportsReferenceImage && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {referencePreviews.map((src, i) => (
+                  <div key={i} className="relative shrink-0">
+                    <img
+                      src={src}
+                      alt={`参考图 ${i + 1}`}
+                      className="size-16 rounded-xl border border-gray-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeReferenceImage(i)}
+                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
+                    >
+                      <X className="size-2.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
 
-            {/* Generate button */}
-            <Button
-              onClick={handleGenerate}
-              disabled={loading || !prompt.trim()}
-              className="h-12 w-full rounded-xl bg-[#7c3aed] text-base font-semibold text-white hover:bg-[#6d28d9]"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                "生成"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Result */}
-        {result && (
-          <Card className="mt-6 rounded-2xl bg-white shadow-md">
-            <CardContent className="p-4 md:p-6">
-              <div className="max-h-[60vh] overflow-hidden rounded-xl">
-                <img
-                  src={toProxyUrl(result.image_url)}
-                  alt="生成结果"
-                  className="mx-auto max-h-[60vh] rounded-xl object-contain"
-                />
-              </div>
-              <div className="mt-4 flex gap-3">
-                <Button onClick={handleDownload} variant="outline" className="flex-1">
-                  <Download className="mr-1.5 size-4" />
-                  下载
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={resultSaved || saving}
-                >
-                  {saving ? (
-                    <Loader2 className="mr-1.5 size-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-1.5 size-4" />
-                  )}
-                  {resultSaved ? "已保存" : "保存"}
-                </Button>
-                <Button
-                  onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
-                  disabled={published || publishing}
-                >
-                  <Share2 className="mr-1.5 size-4" />
-                  {published ? "已发布" : "发布"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Examples */}
-        {examples.length > 0 && (
-          <div className="mt-6">
-            <h2 className="mb-3 text-base font-semibold text-gray-900">示例图</h2>
-            <p className="mb-3 text-xs text-gray-500">点击示例可自动填充提示词</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {examples.map((ex) => (
-                <div
-                  key={ex.id}
-                  onClick={() => handleExampleClick(ex)}
-                  className="cursor-pointer rounded-xl bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:rounded-2xl md:p-3"
-                >
-                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-                    <img
-                      src={toProxyUrl(ex.image_url)}
-                      alt={ex.prompt}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
-                      }}
-                    />
-                  </div>
-                  <p className="mt-1.5 truncate text-xs text-gray-600">
-                    {ex.prompt.length > 15 ? ex.prompt.slice(0, 15) + "..." : ex.prompt}
-                  </p>
-                  <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
-                    {models.find((m) => m.id === ex.model)?.name || ex.model}
-                  </span>
+            {/* Examples */}
+            {examples.length > 0 && (
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-gray-900">示例图</h2>
+                <p className="mb-2 text-xs text-gray-400">点击示例可自动填充提示词</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {examples.map((ex) => (
+                    <div
+                      key={ex.id}
+                      onClick={() => handleExampleClick(ex)}
+                      className="cursor-pointer rounded-xl bg-white p-1.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
+                        <img
+                          src={toProxyUrl(ex.image_url)}
+                          alt={ex.prompt}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 truncate text-[11px] text-gray-500">
+                        {ex.prompt.length > 12 ? ex.prompt.slice(0, 12) + "..." : ex.prompt}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Right: Result / Placeholder */}
+          <div className="sticky top-6">
+            {result ? (
+              <div className="rounded-2xl bg-white p-3 shadow-sm md:p-4">
+                <div className="overflow-hidden rounded-xl bg-gray-50">
+                  <img
+                    src={toProxyUrl(result.image_url)}
+                    alt="生成结果"
+                    className="w-full object-contain"
+                  />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-lg text-xs">
+                    <Download className="mr-1 size-3" />
+                    下载
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 rounded-lg text-xs"
+                    disabled={resultSaved || saving}
+                  >
+                    {saving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Save className="mr-1 size-3" />}
+                    {resultSaved ? "已保存" : "保存"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="rounded-lg text-xs"
+                    onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
+                    disabled={published || publishing}
+                  >
+                    <Share2 className="mr-1 size-3" />
+                    {published ? "已发布" : "发布"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 py-20 text-gray-400">
+                <ImagePlus className="mb-3 size-10" />
+                <p className="text-sm">输入提示词后点击生成</p>
+                <p className="mt-1 text-xs text-gray-300">结果将显示在这里</p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Publish dialog */}
         <Dialog open={showPublishDialog} onOpenChange={(open) => { if (!open) setShowPublishDialog(false); }}>
@@ -623,20 +630,9 @@ export default function GeneratePageClient({
                   value={publishTitle}
                   onChange={(e) => setPublishTitle(e.target.value)}
                   placeholder={prompt.trim().slice(0, 30) || "输入标题"}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                 />
               </div>
-              {/* 暂时隐藏水印选项
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={watermarkEnabled}
-                  onChange={(e) => setWatermarkEnabled(e.target.checked)}
-                  className="size-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                添加水印保护
-              </label>
-              */}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowPublishDialog(false)}>

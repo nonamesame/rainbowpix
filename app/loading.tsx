@@ -1,7 +1,7 @@
 export default function HomeLoading() {
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-6 md:px-6">
+      <div className="px-4 py-6 md:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <div className="h-7 w-32 animate-pulse rounded bg-gray-200" />

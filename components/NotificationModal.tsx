@@ -32,6 +32,7 @@ interface Props {
   initialNotification: Notification | null;
   loading: boolean;
   onMarkRead: (ids: string[]) => void;
+  onMarkAllRead: () => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }
@@ -50,7 +51,7 @@ const typeLabel: Record<string, { label: string; color: string }> = {
   comment: { label: "评论", color: "bg-blue-100 text-blue-700" },
 };
 
-export default function NotificationModal({ notifications, initialNotification, loading, onMarkRead, onDelete, onClose }: Props) {
+export default function NotificationModal({ notifications, initialNotification, loading, onMarkRead, onMarkAllRead, onDelete, onClose }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(initialNotification?._id || null);
 
   // 从 notifications 列表中获取最新状态
@@ -111,8 +112,16 @@ export default function NotificationModal({ notifications, initialNotification, 
 
         {/* Left: Notification List */}
         <div className="flex w-64 flex-col border-r border-gray-200">
-          <div className="border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <span className="text-sm font-semibold text-gray-900">通知</span>
+            {notifications.some((n) => !n.read) && (
+              <button
+                onClick={onMarkAllRead}
+                className="text-xs text-violet-600 hover:text-violet-700 hover:underline"
+              >
+                全部已读
+              </button>
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
             {loading ? (

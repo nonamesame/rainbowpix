@@ -1,7 +1,7 @@
 export default function ProfileLoading() {
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-6 md:px-6">
+      <div className="px-4 py-6 md:px-8">
         {/* Profile header skeleton */}
         <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <div className="size-20 animate-pulse rounded-full bg-gray-200" />
