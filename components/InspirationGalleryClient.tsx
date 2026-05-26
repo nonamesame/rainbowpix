@@ -36,6 +36,7 @@ export default function InspirationGalleryClient({
   const [total, setTotal] = useState(initialTotal);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<InspirationItem | null>(null);
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
 
   const handleLikeToggle = useCallback((id: string, liked: boolean, count: number) => {
     setItems((prev) =>
@@ -53,6 +54,9 @@ export default function InspirationGalleryClient({
       toast.error("请先登录");
       return;
     }
+    if (likingIds.has(item._id)) return;
+
+    setLikingIds((prev) => new Set(prev).add(item._id));
     const wasLiked = item.user_liked ?? false;
     const newCount = wasLiked ? (item.likes_count || 1) - 1 : (item.likes_count || 0) + 1;
     handleLikeToggle(item._id, !wasLiked, newCount);
@@ -64,6 +68,12 @@ export default function InspirationGalleryClient({
     } catch {
       handleLikeToggle(item._id, wasLiked, item.likes_count || 0);
       toast.error("操作失败，请重试");
+    } finally {
+      setLikingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item._id);
+        return next;
+      });
     }
   }
 
@@ -142,7 +152,8 @@ export default function InspirationGalleryClient({
                   </span>
                   <button
                     onClick={(e) => handleCardLike(e, item)}
-                    className={`flex items-center gap-0.5 text-[10px] transition-colors cursor-pointer hover:text-red-500 ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
+                    disabled={likingIds.has(item._id)}
+                    className={`flex items-center gap-0.5 text-[10px] transition-colors cursor-pointer hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
                   >
                     <Heart className={`size-3 ${item.user_liked ? "fill-red-500" : ""}`} />
                     {item.likes_count || 0}

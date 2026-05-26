@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { TcbUser } from "@/lib/cloudbase/types";
 import TopNav from "@/components/TopNav";
 import BottomNav from "@/components/BottomNav";
+import ScrollToTop from "@/components/ScrollToTop";
 import { useNotifications } from "@/hooks/useNotifications";
 import AnnouncementModal from "@/components/AnnouncementModal";
 
@@ -139,6 +140,7 @@ export default function AppShell({ children }: Props) {
       />
       <main className="pb-16 md:pb-0">{children}</main>
       <BottomNav user={user} unreadCount={unreadCount} />
+      <ScrollToTop />
 
       {announcements.length > 0 && (
         <AnnouncementModal

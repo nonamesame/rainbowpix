@@ -54,23 +54,36 @@ export async function POST(
   }
 
   if (alreadyLiked && existingLikeId) {
-    // Unlike
+    // Unlike - use atomic decrement
     await serverDb.collection("gallery_likes").doc(existingLikeId).delete();
     await serverDb.collection("generations").doc(generationId).update({
-      likes_count: Math.max(0, (generation.likes_count || 1) - 1),
+      likes_count: serverDb.command.inc(-1),
     });
-    return Response.json({ liked: false, likes_count: Math.max(0, (generation.likes_count || 1) - 1) });
+    // Re-read to get accurate count
+    const { data: updatedGen } = await serverDb
+      .collection("generations")
+      .where({ _id: generationId })
+      .field(["likes_count"])
+      .get();
+    const finalCount = Math.max(0, updatedGen?.[0]?.likes_count || 0);
+    return Response.json({ liked: false, likes_count: finalCount });
   } else {
-    // Like
+    // Like - use atomic increment
     await serverDb.collection("gallery_likes").add({
       user_id: user.uid,
       generation_id: generationId,
       created_at: new Date().toISOString(),
     });
-    const newCount = (generation.likes_count || 0) + 1;
     await serverDb.collection("generations").doc(generationId).update({
-      likes_count: newCount,
+      likes_count: serverDb.command.inc(1),
     });
+    // Re-read to get accurate count
+    const { data: updatedGen } = await serverDb
+      .collection("generations")
+      .where({ _id: generationId })
+      .field(["likes_count"])
+      .get();
+    const finalCount = updatedGen?.[0]?.likes_count || 0;
 
     // Send notification to the generation owner (if not self-like)
     if (generation.user_id !== user.uid) {
@@ -87,6 +100,6 @@ export async function POST(
       });
     }
 
-    return Response.json({ liked: true, likes_count: newCount });
+    return Response.json({ liked: true, likes_count: finalCount });
   }
 }

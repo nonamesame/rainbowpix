@@ -129,6 +129,7 @@ export default function ProfileClient({
   const [publishing, setPublishing] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [publishTitle, setPublishTitle] = useState("");
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
 
   // Settings state
   const [editingBio, setEditingBio] = useState(false);
@@ -210,6 +211,8 @@ export default function ProfileClient({
   }
 
   async function handleLike(item: Generation) {
+    if (likingIds.has(item._id)) return;
+    setLikingIds((prev) => new Set(prev).add(item._id));
     try {
       const res = await fetch(`/api/inspiration/${item._id}/like`, { method: "POST" });
       const data = await res.json();
@@ -232,6 +235,12 @@ export default function ProfileClient({
       }
     } catch {
       toast.error("操作失败");
+    } finally {
+      setLikingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item._id);
+        return next;
+      });
     }
   }
 
@@ -715,7 +724,7 @@ export default function ProfileClient({
                         <button
                           onClick={(e) => { e.stopPropagation(); if (!isOwner) handleLike(item); }}
                           className={`flex items-center gap-0.5 text-[10px] transition-colors ${!isOwner ? "cursor-pointer hover:text-red-500" : "cursor-default"} ${item.user_liked ? "text-red-500" : "text-gray-400"}`}
-                          disabled={isOwner}
+                          disabled={isOwner || likingIds.has(item._id)}
                         >
                           <Heart className={`size-3 ${item.user_liked ? "fill-red-500" : ""}`} />
                           {item.likes_count || 0}
@@ -1043,7 +1052,8 @@ export default function ProfileClient({
                 {selected.likes_count != null && (
                   <button
                     onClick={() => handleLike(selected)}
-                    className={`flex items-center gap-1 cursor-pointer transition-colors hover:text-red-500 ${selected.user_liked ? "text-red-500" : "text-gray-400"}`}
+                    disabled={likingIds.has(selected._id)}
+                    className={`flex items-center gap-1 cursor-pointer transition-colors hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed ${selected.user_liked ? "text-red-500" : "text-gray-400"}`}
                   >
                     <Heart className={`size-4 ${selected.user_liked ? "fill-red-500" : ""}`} />
                     <span className="text-gray-600">{selected.likes_count} 赞</span>
