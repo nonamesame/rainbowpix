@@ -121,7 +121,7 @@ export default function InspirationGalleryClient({
               灵感大厅
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              发现创作者的精彩作品
+              发现属于你的提示词
             </p>
           </div>
           <Link href="/generate">

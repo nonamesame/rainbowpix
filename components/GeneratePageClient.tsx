@@ -85,6 +85,7 @@ export default function GeneratePageClient({
   const [dismissing, setDismissing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [referenceViewerImage, setReferenceViewerImage] = useState<string | null>(null);
   const [refHover, setRefHover] = useState(false);
 
   // Track content appearance for lift animation
@@ -469,7 +470,7 @@ export default function GeneratePageClient({
                           }}
                         >
                           <div className="relative size-20 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-                            <img src={src} alt={`参考图 ${i + 1}`} className="size-full object-cover" />
+                            <img src={src} alt={`参考图 ${i + 1}`} className="size-full object-cover cursor-pointer" onClick={() => setReferenceViewerImage(src)} />
                           </div>
                           <button
                             type="button"
@@ -687,6 +688,7 @@ export default function GeneratePageClient({
         </DialogContent>
       </Dialog>
       {previewImage && <ImageViewer src={toProxyUrl(previewImage)} alt="预览" onClose={() => setPreviewImage(null)} />}
+      {referenceViewerImage && <ImageViewer src={referenceViewerImage} alt="参考图" onClose={() => setReferenceViewerImage(null)} />}
     </div>
   );
 }
