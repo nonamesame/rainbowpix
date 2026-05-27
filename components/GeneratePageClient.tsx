@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Loader2, Download, Save, ImagePlus, X, Share2 } from "lucide-react";
+import ImageViewer from "@/components/ImageViewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,41 @@ export default function GeneratePageClient({
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [publishTitle, setPublishTitle] = useState("");
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+  const [lockedSize, setLockedSize] = useState<{ w: number; h: number } | null>(null);
+  const [dismissing, setDismissing] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Track content appearance for lift animation
+  useEffect(() => {
+    if (loading || result) {
+      setHasContent(true);
+    }
+  }, [loading, result]);
+
+  // Two-step dismiss: collapse card height, then unmount + re-center
+  useEffect(() => {
+    if (!dismissing) return;
+    // Step 1: collapse height (300ms)
+    const t1 = setTimeout(() => setCollapsed(true), 50);
+    // Step 2: after collapse finishes, unmount and re-center
+    const t2 = setTimeout(() => {
+      setResult(null);
+      setLockedSize(null);
+      setHasContent(false);
+      setDismissing(false);
+      setCollapsed(false);
+    }, 400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [dismissing]);
+
+  // Lock aspect ratio when result appears (for URL-restored results)
+  useEffect(() => {
+    if (result && !lockedSize) {
+      setLockedSize(getPixelSize(size, model));
+    }
+  }, [result]);
 
   // Load reference images from URL params (async, so needs useEffect)
   useEffect(() => {
@@ -267,6 +303,7 @@ export default function GeneratePageClient({
     }
 
     setPromptError(null);
+    setLockedSize(getPixelSize(size, model));
     startPending({
       prompt: prompt.trim(),
       model,
@@ -392,26 +429,21 @@ export default function GeneratePageClient({
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50/50 px-4">
-      {/* Centered Title */}
-      <h1 className="text-3xl font-semibold text-gray-900 mb-8">
-        你好，想创作什么？
-      </h1>
-
-      {/* Centered Input Box */}
+    <div className="min-h-screen flex flex-col items-center bg-gray-50/50 px-4">
       <div className="w-full max-w-3xl">
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className={`transition-all duration-500 ease-in-out ${hasContent ? 'h-0' : 'h-[30vh]'}`} />
+        <h1 className="text-center text-3xl font-semibold text-gray-900 mb-8">
+          你好，想创作什么？
+        </h1>
+
+        {/* Input card */}
+        <div className="rounded-2xl bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex gap-4">
-            {/* Reference image upload trigger */}
             {currentModel?.supportsReferenceImage && (
               <div className="shrink-0">
                 {referencePreviews.length > 0 ? (
                   <div className="relative size-20 overflow-hidden rounded-xl border border-gray-200">
-                    <img
-                      src={referencePreviews[0]}
-                      alt="参考图"
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={referencePreviews[0]} alt="参考图" className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeReferenceImage(0)}
@@ -434,19 +466,12 @@ export default function GeneratePageClient({
                   >
                     <ImagePlus className="size-6 text-gray-400" />
                     <span className="mt-1 text-[10px] text-gray-400">参考图</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleReferenceImageChange}
-                      className="hidden"
-                    />
+                    <input type="file" accept="image/*" multiple onChange={handleReferenceImageChange} className="hidden" />
                   </label>
                 )}
               </div>
             )}
 
-            {/* Prompt textarea */}
             <div className="flex-1">
               <textarea
                 value={prompt}
@@ -457,11 +482,8 @@ export default function GeneratePageClient({
             </div>
           </div>
 
-          {promptError && (
-            <p className="mt-1.5 text-xs text-red-500">{promptError}</p>
-          )}
+          {promptError && <p className="mt-1.5 text-xs text-red-500">{promptError}</p>}
 
-          {/* Toolbar row: model + ratio + generate */}
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
             <Select value={model} onValueChange={handleModelChange}>
               <SelectTrigger className="h-8 w-auto rounded-lg border-gray-200 text-xs">
@@ -469,9 +491,7 @@ export default function GeneratePageClient({
               </SelectTrigger>
               <SelectContent>
                 {models.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
+                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -504,24 +524,18 @@ export default function GeneratePageClient({
               size="sm"
               className="h-8 rounded-lg bg-violet-600 px-4 text-xs font-medium text-white hover:bg-violet-700"
             >
-              {loading ? (
-                <Loader2 className="mr-1 size-3 animate-spin" />
-              ) : null}
+              {loading ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
               {loading ? "生成中" : "生成"}
             </Button>
           </div>
         </div>
 
-        {/* Reference images list (if more than 1) */}
+        {/* Reference images list */}
         {referencePreviews.length > 1 && currentModel?.supportsReferenceImage && (
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {referencePreviews.map((src, i) => (
               <div key={i} className="relative shrink-0">
-                <img
-                  src={src}
-                  alt={`参考图 ${i + 1}`}
-                  className="size-20 rounded-xl border border-gray-200 object-cover"
-                />
+                <img src={src} alt={`参考图 ${i + 1}`} className="size-20 rounded-xl border border-gray-200 object-cover" />
                 <button
                   type="button"
                   onClick={() => removeReferenceImage(i)}
@@ -569,67 +583,58 @@ export default function GeneratePageClient({
 
       {/* Result display below input */}
       {(() => {
-        const { w, h } = getPixelSize(size, model);
+        const { w, h } = lockedSize || getPixelSize(size, model);
         return loading && !result ? (
-          <div className="w-full max-w-3xl mt-6 animate-in fade-in duration-300">
+          <div className="w-full max-w-3xl mx-auto mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
             <div className="rounded-2xl bg-white p-3 shadow-sm">
               <div className="flex items-center justify-center rounded-xl bg-gray-50" style={{ aspectRatio: `${w} / ${h}` }}>
                 <div className="flex flex-col items-center gap-3 text-gray-400">
                   <Loader2 className="size-8 animate-spin" />
-                  <p className="text-sm">{currentModel?.name || "AI"} 正在全力为您生成中...</p>
+                  <p className="text-sm animate-shimmer-pulse">{currentModel?.name || "AI"} 正在全力为您生成中...</p>
                 </div>
               </div>
             </div>
           </div>
         ) : result ? (
-          <div className="w-full max-w-3xl mt-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <div className="overflow-hidden rounded-xl bg-gray-50" style={{ aspectRatio: `${w} / ${h}` }}>
-                <img
-                  src={toProxyUrl(result.image_url)}
-                  alt="生成结果"
-                  className="h-full w-full object-contain"
-                />
+          <div className={`w-full max-w-3xl mx-auto mt-6 overflow-hidden transition-all duration-300 ease-in ${
+            collapsed ? "max-h-0 opacity-0 mt-0" : dismissing ? "max-h-[800px] opacity-100" : "animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+          }`}>
+            <div className="rounded-2xl bg-white p-3 shadow-sm transition-all duration-500">
+              <div className="overflow-hidden rounded-xl bg-gray-50 animate-in fade-in duration-500 delay-150 fill-mode-both cursor-pointer" style={{ aspectRatio: `${w} / ${h}` }} onClick={() => setPreviewImage(result.image_url)}>
+                <img src={toProxyUrl(result.image_url)} alt="生成结果" className="h-full w-full object-contain" />
               </div>
-            <div className="mt-3 flex items-center gap-2">
-              <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-lg text-xs">
-                <Download className="mr-1 size-3" />
-                下载
-              </Button>
-              <Button
-                onClick={handleSave}
-                variant="outline"
-                size="sm"
-                className="flex-1 rounded-lg text-xs"
-                disabled={resultSaved || saving}
-              >
-                {saving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Save className="mr-1 size-3" />}
-                {resultSaved ? "已保存" : "保存"}
-              </Button>
-              <Button
-                size="sm"
-                className="rounded-lg text-xs"
-                onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
-                disabled={published || publishing}
-              >
-                <Share2 className="mr-1 size-3" />
-                {published ? "已发布" : "发布"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="ml-auto rounded-lg px-2 text-gray-400 hover:text-gray-600"
-                onClick={() => setResult(null)}
-              >
-                <X className="size-3.5" />
-              </Button>
+              <div className="mt-3 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300 fill-mode-both">
+                <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-lg text-xs">
+                  <Download className="mr-1 size-3" />
+                  下载
+                </Button>
+                <Button onClick={handleSave} variant="outline" size="sm" className="flex-1 rounded-lg text-xs" disabled={resultSaved || saving}>
+                  {saving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Save className="mr-1 size-3" />}
+                  {resultSaved ? "已保存" : "保存"}
+                </Button>
+                <Button
+                  size="sm"
+                  className="rounded-lg text-xs"
+                  onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
+                  disabled={published || publishing}
+                >
+                  <Share2 className="mr-1 size-3" />
+                  {published ? "已发布" : "发布"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto rounded-lg px-2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setDismissing(true)}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null;
+        ) : null;
       })()}
 
-      {/* Publish dialog */}
       <Dialog open={showPublishDialog} onOpenChange={(open) => { if (!open) setShowPublishDialog(false); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -638,9 +643,7 @@ export default function GeneratePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                标题（可选）
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">标题（可选）</label>
               <input
                 type="text"
                 value={publishTitle}
@@ -651,20 +654,15 @@ export default function GeneratePageClient({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
-              取消
-            </Button>
+            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>取消</Button>
             <Button onClick={handlePublish} disabled={publishing}>
-              {publishing ? (
-                <Loader2 className="mr-1.5 size-4 animate-spin" />
-              ) : (
-                <Share2 className="mr-1.5 size-4" />
-              )}
+              {publishing ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Share2 className="mr-1.5 size-4" />}
               发布
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {previewImage && <ImageViewer src={toProxyUrl(previewImage)} alt="预览" onClose={() => setPreviewImage(null)} />}
     </div>
   );
 }

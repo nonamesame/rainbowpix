@@ -208,3 +208,12 @@ input[data-slot="input"]:-webkit-autofill:focus {
 .animate-heart {
   animation: heart-bounce 0.4s ease-in-out;
 }
+
+/* Loading shimmer pulse */
+@keyframes shimmer-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.animate-shimmer-pulse {
+  animation: shimmer-pulse 2s ease-in-out infinite;
+}
