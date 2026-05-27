@@ -568,17 +568,30 @@ export default function GeneratePageClient({
       </div>
 
       {/* Result display below input */}
-      {result && (
-        <div className="w-full max-w-3xl mt-6">
-          <div className="rounded-2xl bg-white p-3 shadow-sm">
-            <div className="overflow-hidden rounded-xl bg-gray-50">
-              <img
-                src={toProxyUrl(result.image_url)}
-                alt="生成结果"
-                className="w-full object-contain"
-              />
+      {(() => {
+        const { w, h } = getPixelSize(size, model);
+        return loading && !result ? (
+          <div className="w-full max-w-3xl mt-6 animate-in fade-in duration-300">
+            <div className="rounded-2xl bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-center rounded-xl bg-gray-50" style={{ aspectRatio: `${w} / ${h}` }}>
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <Loader2 className="size-8 animate-spin" />
+                  <p className="text-sm">{currentModel?.name || "AI"} 正在全力为您生成中...</p>
+                </div>
+              </div>
             </div>
-            <div className="mt-3 flex gap-2">
+          </div>
+        ) : result ? (
+          <div className="w-full max-w-3xl mt-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="rounded-2xl bg-white p-3 shadow-sm">
+              <div className="overflow-hidden rounded-xl bg-gray-50" style={{ aspectRatio: `${w} / ${h}` }}>
+                <img
+                  src={toProxyUrl(result.image_url)}
+                  alt="生成结果"
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            <div className="mt-3 flex items-center gap-2">
               <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-lg text-xs">
                 <Download className="mr-1 size-3" />
                 下载
@@ -602,10 +615,19 @@ export default function GeneratePageClient({
                 <Share2 className="mr-1 size-3" />
                 {published ? "已发布" : "发布"}
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto rounded-lg px-2 text-gray-400 hover:text-gray-600"
+                onClick={() => setResult(null)}
+              >
+                <X className="size-3.5" />
+              </Button>
             </div>
           </div>
         </div>
-      )}
+      ) : null;
+      })()}
 
       {/* Publish dialog */}
       <Dialog open={showPublishDialog} onOpenChange={(open) => { if (!open) setShowPublishDialog(false); }}>

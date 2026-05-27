@@ -1,7 +1,7 @@
 "use client";
 
 import { decodeUserCookie } from "@/lib/utils";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { TcbUser } from "@/lib/cloudbase/types";
 import Sidebar from "@/components/Sidebar";
@@ -116,8 +116,12 @@ export default function AppShell({ children }: Props) {
   }, [readUserFromCookie]);
 
   // On pathname change: refresh cookie in background without clearing state or hitting API
+  const prevPathname = useRef(pathname);
   useEffect(() => {
-    readUserFromCookie({ preserveExisting: true, skipApi: true });
+    if (prevPathname.current !== pathname) {
+      prevPathname.current = pathname;
+      readUserFromCookie({ preserveExisting: true, skipApi: true });
+    }
   }, [pathname, readUserFromCookie]);
 
   // Event listeners: focus, cross-tab updates

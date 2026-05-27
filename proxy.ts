@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get("tcb_access_token")?.value;
 
   if (

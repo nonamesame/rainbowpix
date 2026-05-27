@@ -21,12 +21,25 @@ function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function InspirationGalleryClient({
   initialItems,
   total: initialTotal,
   currentUserId,
 }: Props) {
   const [items, setItems] = useState<InspirationItem[]>(initialItems);
+
+  useEffect(() => {
+    setItems((prev) => shuffle(prev));
+  }, []);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(initialTotal);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -136,40 +149,42 @@ export default function InspirationGalleryClient({
                 }}
                 className="mb-3 break-inside-avoid cursor-pointer md:mb-4"
               >
-                <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-                  <img
-                    src={toProxyUrl(item.image_url)}
-                    alt={item.prompt}
-                    className="w-full block transition-transform duration-300 group-hover:scale-105"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
-                    }}
-                  />
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                  {/* Work title - bottom left */}
-                  <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                    <p className="truncate text-xs font-medium text-white drop-shadow-md">
-                      {item.title || truncate(item.prompt, 20)}
-                    </p>
+                    <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                      <img
+                        src={toProxyUrl(item.image_url)}
+                        alt={item.prompt}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full block transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
+                        }}
+                      />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                      {/* Work title - bottom left */}
+                      <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <p className="truncate text-xs font-medium text-white drop-shadow-md">
+                          {item.title || truncate(item.prompt, 20)}
+                        </p>
+                      </div>
+                      {/* Like button - right side */}
+                      <button
+                        onClick={(e) => handleCardLike(e, item)}
+                        disabled={likingIds.has(item._id)}
+                        className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
+                          item.user_liked
+                            ? "text-red-500"
+                            : "text-white hover:text-red-500"
+                        }`}
+                      >
+                        <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
+                        <span>{item.likes_count || 0}</span>
+                      </button>
+                    </div>
                   </div>
-                  {/* Like button - right side */}
-                  <button
-                    onClick={(e) => handleCardLike(e, item)}
-                    disabled={likingIds.has(item._id)}
-                    className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
-                      item.user_liked
-                        ? "text-red-500"
-                        : "text-white hover:text-red-500"
-                    }`}
-                  >
-                    <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
-                    <span>{item.likes_count || 0}</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+                ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">

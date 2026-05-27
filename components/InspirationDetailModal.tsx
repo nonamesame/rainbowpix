@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Heart, Copy, Sparkles, Download, Eye, Loader2 } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
@@ -98,6 +99,8 @@ export default function InspirationDetailModal({
     });
   }
 
+  const router = useRouter();
+
   function handleMakeSame() {
     const params = new URLSearchParams({
       prompt: item.prompt,
@@ -113,7 +116,7 @@ export default function InspirationDetailModal({
     } else if (item.width && item.height) {
       params.set("ratio", widthHeightToAspectRatio(item.width, item.height));
     }
-    window.location.href = `/generate?${params.toString()}`;
+    router.push(`/generate?${params.toString()}`);
   }
 
   async function handleDownload() {
