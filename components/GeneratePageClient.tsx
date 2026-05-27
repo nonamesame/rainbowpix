@@ -85,6 +85,7 @@ export default function GeneratePageClient({
   const [dismissing, setDismissing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [refHover, setRefHover] = useState(false);
 
   // Track content appearance for lift animation
   useEffect(() => {
@@ -222,7 +223,7 @@ export default function GeneratePageClient({
     const max = currentModel?.maxReferenceImages || 4;
     const remaining = max - referenceImages.length;
     if (remaining <= 0) {
-      toast.error(`最多上传 ${max} 张参考图`);
+      toast.error(`已添加 ${referenceImages.length}/${max} 张参考图，无法继续添加`);
       return;
     }
     const toAdd = Array.from(files).slice(0, remaining);
@@ -243,7 +244,7 @@ export default function GeneratePageClient({
     }
     setReferenceImages((prev) => [...prev, ...toAdd].slice(0, max));
     if (toAdd.length < files.length) {
-      toast.error(`最多上传 ${max} 张参考图，已添加 ${toAdd.length} 张`);
+      toast.error(`最多 ${max} 张，已添加 ${referenceImages.length + toAdd.length}/${max} 张`);
     }
   }
 
@@ -440,21 +441,60 @@ export default function GeneratePageClient({
         <div className="rounded-2xl bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex gap-4">
             {currentModel?.supportsReferenceImage && (
-              <div className="shrink-0">
+              <div
+                className="shrink-0"
+                onMouseEnter={() => setRefHover(true)}
+                onMouseLeave={() => setRefHover(false)}
+                style={{
+                  width: refHover && referencePreviews.length > 0 ? `${80 + referencePreviews.length * 60 + 20}px` : "80px",
+                  transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              >
                 {referencePreviews.length > 0 ? (
-                  <div className="relative size-20 overflow-hidden rounded-xl border border-gray-200">
-                    <img src={referencePreviews[0]} alt="参考图" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeReferenceImage(0)}
-                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
-                    >
-                      <X className="size-2.5" />
-                    </button>
-                    {referencePreviews.length > 1 && (
-                      <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 py-0.5 text-[8px] text-white">
-                        +{referencePreviews.length - 1}
-                      </span>
+                  <div className="relative size-20">
+                    {/* Stacked cards */}
+                    {referencePreviews.map((src, i) => {
+                      const total = referencePreviews.length + 1;
+                      const offset = refHover ? i * 60 : 0;
+                      const rotate = refHover ? 0 : (i % 2 === 0 ? -6 : 6) * (i === 0 ? 0 : 1);
+                      const translateY = refHover ? 0 : -i * 4;
+                      return (
+                        <div
+                          key={i}
+                          className="absolute left-0 top-0"
+                          style={{
+                            zIndex: total - i,
+                            transform: `translateX(${offset}px) translateY(${translateY}px) rotate(${rotate}deg)`,
+                            transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                          }}
+                        >
+                          <div className="relative size-20 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+                            <img src={src} alt={`参考图 ${i + 1}`} className="size-full object-cover" />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeReferenceImage(i)}
+                            className="absolute -right-1.5 -top-1.5 flex size-4.5 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+                            style={{ opacity: refHover ? 1 : 0 }}
+                          >
+                            <X className="size-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {/* Add button - same style as image cards */}
+                    {referencePreviews.length < (currentModel?.maxReferenceImages || 4) && (
+                      <label
+                        className="absolute left-0 top-0 z-10 flex size-20 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm"
+                        style={{
+                          zIndex: 1,
+                          transform: `translateX(${refHover ? referencePreviews.length * 60 : 0}px) translateY(${refHover ? 0 : -referencePreviews.length * 4}px) rotate(${refHover ? 0 : (referencePreviews.length % 2 === 0 ? -6 : 6)}deg)`,
+                          transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        <ImagePlus className="size-5 text-gray-400" />
+                        <input type="file" accept="image/*" multiple onChange={handleReferenceImageChange} className="hidden" />
+                      </label>
                     )}
                   </div>
                 ) : (
@@ -486,12 +526,14 @@ export default function GeneratePageClient({
 
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
             <Select value={model} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-8 w-auto rounded-lg border-gray-200 text-xs">
+              <SelectTrigger className="h-8 w-auto rounded-full border-violet-200 bg-violet-50/50 px-3 text-xs font-medium text-violet-700 hover:bg-violet-50 hover:text-violet-800">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-gray-200 p-1 [&_[data-slot=select-item]]:pr-1.5 [&_[class*=absolute][class*=right-2]]:hidden">
                 {models.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  <SelectItem key={m.id} value={m.id} className="rounded-lg px-3 py-2 text-xs">
+                    {m.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -503,11 +545,11 @@ export default function GeneratePageClient({
                   type="button"
                   onClick={() => setSize(ratio)}
                   disabled={!supportedRatios.includes(ratio)}
-                  className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-all ${
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
                     size === ratio
-                      ? "bg-violet-50 text-violet-700"
+                      ? "bg-violet-100 text-violet-700 shadow-sm"
                       : supportedRatios.includes(ratio)
-                        ? "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                        ? "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                         : "cursor-not-allowed text-gray-300"
                   }`}
                 >
@@ -522,31 +564,13 @@ export default function GeneratePageClient({
               onClick={handleGenerate}
               disabled={loading || !prompt.trim()}
               size="sm"
-              className="h-8 rounded-lg bg-violet-600 px-4 text-xs font-medium text-white hover:bg-violet-700"
+              className="h-8 rounded-full bg-violet-600 px-4 text-xs font-medium text-white shadow-sm hover:bg-violet-700"
             >
               {loading ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
               {loading ? "生成中" : "生成"}
             </Button>
           </div>
         </div>
-
-        {/* Reference images list */}
-        {referencePreviews.length > 1 && currentModel?.supportsReferenceImage && (
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {referencePreviews.map((src, i) => (
-              <div key={i} className="relative shrink-0">
-                <img src={src} alt={`参考图 ${i + 1}`} className="size-20 rounded-xl border border-gray-200 object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removeReferenceImage(i)}
-                  className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600"
-                >
-                  <X className="size-2.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Examples */}
         {examples.length > 0 && (
@@ -604,17 +628,17 @@ export default function GeneratePageClient({
                 <img src={toProxyUrl(result.image_url)} alt="生成结果" className="h-full w-full object-contain" />
               </div>
               <div className="mt-3 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300 fill-mode-both">
-                <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-lg text-xs">
+                <Button onClick={handleDownload} variant="outline" size="sm" className="flex-1 rounded-full text-xs">
                   <Download className="mr-1 size-3" />
                   下载
                 </Button>
-                <Button onClick={handleSave} variant="outline" size="sm" className="flex-1 rounded-lg text-xs" disabled={resultSaved || saving}>
+                <Button onClick={handleSave} variant="outline" size="sm" className="flex-1 rounded-full text-xs" disabled={resultSaved || saving}>
                   {saving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Save className="mr-1 size-3" />}
                   {resultSaved ? "已保存" : "保存"}
                 </Button>
                 <Button
                   size="sm"
-                  className="rounded-lg text-xs"
+                  className="rounded-full text-xs"
                   onClick={() => { setPublishTitle(""); setWatermarkEnabled(false); setShowPublishDialog(true); }}
                   disabled={published || publishing}
                 >
@@ -624,7 +648,7 @@ export default function GeneratePageClient({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="ml-auto rounded-lg px-2 text-gray-400 hover:text-gray-600"
+                  className="ml-auto rounded-full px-2 text-gray-400 hover:text-gray-600"
                   onClick={() => setDismissing(true)}
                 >
                   <X className="size-3.5" />
@@ -654,8 +678,8 @@ export default function GeneratePageClient({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>取消</Button>
-            <Button onClick={handlePublish} disabled={publishing}>
+            <Button variant="outline" className="rounded-full" onClick={() => setShowPublishDialog(false)}>取消</Button>
+            <Button className="rounded-full" onClick={handlePublish} disabled={publishing}>
               {publishing ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Share2 className="mr-1.5 size-4" />}
               发布
             </Button>

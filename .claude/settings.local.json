@@ -110,7 +110,8 @@
       "Bash(git stash *)",
       "Bash(echo \"exit: $?\")",
       "Bash(xargs -I{} echo \"Opening: {}\")",
-      "Bash(xargs -I{} echo \"Closing: {}\")"
+      "Bash(xargs -I{} echo \"Closing: {}\")",
+      "WebFetch(domain:modelscope.cn)"
     ]
   }
 }

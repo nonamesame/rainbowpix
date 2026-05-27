@@ -29,6 +29,9 @@ const SIZE_MAP: Record<string, Record<string, { w: number; h: number }>> = {
     "9:16": { w: 1024, h: 1792 },
     "16:9": { w: 1792, h: 1024 },
   },
+  "z-image-turbo": {
+    "1:1": { w: 1024, h: 1024 },
+  },
 };
 
 export function getPixelSize(aspectRatio: string, modelId: string): { w: number; h: number } {
@@ -77,5 +80,14 @@ export const models: Model[] = [
     creditCost: 3,
     supportsReferenceImage: true,
     maxReferenceImages: 4,
+  },
+  {
+    id: "z-image-turbo",
+    name: "造相 Z-Image-Turbo",
+    description: "通义万相快速版，生图速度快，每日免费2000次",
+    supportedAspectRatios: ["1:1"],
+    creditCost: 0,
+    supportsReferenceImage: false,
+    maxReferenceImages: 0,
   },
 ];
