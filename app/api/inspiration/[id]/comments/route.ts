@@ -52,6 +52,32 @@ export async function GET(
 
   let items = data || [];
 
+  // Fetch latest username and avatar from users collection
+  if (items.length > 0) {
+    try {
+      const userIds = [...new Set(items.map((c: any) => c.user_id))];
+      const { data: users } = await serverDb
+        .collection("users")
+        .where({ uid: { $in: userIds } })
+        .field(["uid", "username", "avatar_url"])
+        .get();
+      const userMap = new Map((users || []).map((u: any) => [u.uid, u]));
+      items = items.map((item: any) => {
+        const user = userMap.get(item.user_id);
+        if (user) {
+          return {
+            ...item,
+            username: user.username || item.username,
+            avatar_url: user.avatar_url || item.avatar_url,
+          };
+        }
+        return item;
+      });
+    } catch {
+      // users collection may not exist yet, keep denormalized data
+    }
+  }
+
   // Check which comments the current user has liked
   if (currentUserId && items.length > 0) {
     try {

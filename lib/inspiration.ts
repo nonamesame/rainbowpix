@@ -13,6 +13,7 @@ export interface InspirationItem {
   title?: string;
   user_liked?: boolean;
   comments_count?: number;
+  author_avatar_url?: string;
   width?: number;
   height?: number;
 }

@@ -83,6 +83,22 @@ export default async function InspirationDetailPage({
 
   const item = { ...raw, user_liked: userLiked };
 
+  // Fetch author's latest profile from users collection
+  try {
+    const { data: authorData } = await serverDb
+      .collection("users")
+      .where({ uid: item.user_id })
+      .field(["username", "avatar_url"])
+      .limit(1)
+      .get();
+    if (authorData && authorData.length > 0) {
+      if (authorData[0].username) item.username = authorData[0].username;
+      item.author_avatar_url = authorData[0].avatar_url || "";
+    }
+  } catch {
+    // users collection may not exist
+  }
+
   return (
     <InspirationDetailClient
       item={item}

@@ -1,10 +1,21 @@
 "use client";
 
-import { useRef } from "react";
-import { Bell, Heart, MessageCircle, Trash2 } from "lucide-react";
+import { useRef, useState, useMemo } from "react";
+import { Bell, Heart, MessageCircle, Trash2, ThumbsUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { Notification } from "@/lib/notifications";
+
+type TabType = "all" | "like" | "comment" | "comment_like" | "system" | "announcement";
+
+const tabs: { key: TabType; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "like", label: "点赞" },
+  { key: "comment", label: "评论" },
+  { key: "comment_like", label: "评论获赞" },
+  { key: "system", label: "系统" },
+  { key: "announcement", label: "公告" },
+];
 
 interface Props {
   notifications: Notification[];
@@ -20,6 +31,7 @@ const iconMap: Record<string, typeof Bell> = {
   system: Bell,
   like: Heart,
   comment: MessageCircle,
+  comment_like: ThumbsUp,
   announcement: Bell,
 };
 
@@ -28,10 +40,25 @@ const typeLabel: Record<string, { label: string; color: string }> = {
   announcement: { label: "公告", color: "bg-orange-100 text-orange-700" },
   like: { label: "点赞", color: "bg-red-100 text-red-700" },
   comment: { label: "评论", color: "bg-blue-100 text-blue-700" },
+  comment_like: { label: "评论获赞", color: "bg-pink-100 text-pink-700" },
 };
 
 export default function NotificationPanel({ notifications, loading, onMarkRead, onMarkAllRead, onDelete, onSelect, onClose }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+
+  const filteredNotifications = useMemo(() => {
+    if (activeTab === "all") return notifications;
+    return notifications.filter((n) => n.type === activeTab);
+  }, [notifications, activeTab]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<TabType, number> = { all: notifications.length, like: 0, comment: 0, comment_like: 0, system: 0, announcement: 0 };
+    for (const n of notifications) {
+      if (n.type in counts) counts[n.type as keyof typeof counts]++;
+    }
+    return counts;
+  }, [notifications]);
 
   function handleClick(n: Notification) {
     if (!n.read) {
@@ -54,6 +81,24 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
           </button>
         )}
       </div>
+      <div className="flex gap-0.5 overflow-x-auto border-b px-3 py-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex min-h-[26px] shrink-0 flex-col items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              activeTab === tab.key
+                ? "bg-purple-100 text-purple-700"
+                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tabCounts[tab.key] > 0 && (
+              <span className="text-[10px] opacity-60">{tabCounts[tab.key]}</span>
+            )}
+          </button>
+        ))}
+      </div>
       <div
         ref={scrollRef}
         className="max-h-80 overflow-y-auto overflow-x-hidden overscroll-contain"
@@ -62,13 +107,13 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
           <div className="flex items-center justify-center py-8 text-sm text-gray-400">
             加载中...
           </div>
-        ) : notifications.length === 0 ? (
+        ) : filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-gray-400">
             <Bell className="mb-2 size-8" />
             <span className="text-sm">暂无通知</span>
           </div>
         ) : (
-          notifications.map((n) => {
+          filteredNotifications.map((n) => {
             const Icon = iconMap[n.type] || Bell;
             return (
               <div
@@ -84,6 +129,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
                   <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${
                     n.type === "like" ? "bg-red-50 text-red-500"
                       : n.type === "comment" ? "bg-blue-50 text-blue-500"
+                      : n.type === "comment_like" ? "bg-pink-50 text-pink-500"
                       : n.type === "announcement" ? "bg-orange-50 text-orange-500"
                       : "bg-purple-50 text-purple-500"
                   }`}>

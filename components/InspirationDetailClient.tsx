@@ -58,6 +58,7 @@ export default function InspirationDetailClient({
   const [downloading, setDownloading] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [commentsCount, setCommentsCount] = useState(item.comments_count || 0);
+  const [authorStats, setAuthorStats] = useState<{ published_count: number; total_likes: number } | null>(null);
   const [imgAnim, setImgAnim] = useState<{ from: string; transition: string } | null>(null);
   const imgRef = useRef<HTMLDivElement>(null);
 
@@ -105,6 +106,13 @@ export default function InspirationDetailClient({
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/users/${item.user_id}/stats`)
+      .then((r) => r.json())
+      .then((data) => setAuthorStats(data))
+      .catch(() => {});
+  }, [item.user_id]);
 
   const isOwner = currentUserId === item.user_id;
   const hasRefImages = parseReferenceImages(item.reference_image_url).length > 0;
@@ -234,6 +242,15 @@ export default function InspirationDetailClient({
                   fetchPriority="high"
                   className="mx-auto w-full object-contain"
                 />
+                {/* Title & date overlay */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent px-4 pb-3 pt-8">
+                  <h2 className="text-base font-semibold text-white drop-shadow">
+                    {item.title || "作品详情"}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-white/80">
+                    {formatDate(item.created_at)}
+                  </p>
+                </div>
               </div>
 
               {/* Action buttons */}
@@ -337,9 +354,18 @@ export default function InspirationDetailClient({
             <div className="animate-detail-sidebar w-full lg:w-80 shrink-0">
               <div className="rounded-xl bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-purple-700">
-                    {item.username ? item.username.charAt(0).toUpperCase() : "?"}
-                  </div>
+                  {item.author_avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.author_avatar_url}
+                      alt={item.username}
+                      className="size-10 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-10 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-purple-700">
+                      {item.username ? item.username.charAt(0).toUpperCase() : "?"}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/profile/${item.user_id}`}
@@ -348,9 +374,11 @@ export default function InspirationDetailClient({
                     >
                       {item.username || "匿名用户"}
                     </Link>
-                    <p className="text-xs text-gray-400">
-                      {item.title || "作品详情"} · {formatDate(item.created_at)}
-                    </p>
+                    {authorStats && (
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {authorStats.published_count} 个作品 · {authorStats.total_likes} 赞
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

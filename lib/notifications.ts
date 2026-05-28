@@ -1,7 +1,7 @@
 import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 
-export type NotificationType = "system" | "like" | "comment" | "announcement";
+export type NotificationType = "system" | "like" | "comment" | "comment_like" | "announcement";
 
 export interface Notification {
   _id: string;

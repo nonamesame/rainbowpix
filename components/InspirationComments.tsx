@@ -156,9 +156,18 @@ export default function InspirationComments({
           {comments.map((comment) => (
             <div key={comment._id} className="flex gap-2.5">
               {/* Avatar */}
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-medium text-purple-700">
-                {getInitial(comment.username)}
-              </div>
+              {comment.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={comment.avatar_url}
+                  alt={comment.username}
+                  className="size-8 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-medium text-purple-700">
+                  {getInitial(comment.username)}
+                </div>
+              )}
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">

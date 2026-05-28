@@ -186,6 +186,48 @@ export async function PATCH(request: NextRequest) {
       } catch {
         // Ignore sync errors
       }
+
+      // Sync username to all comments if changed
+      try {
+        const { data: comments } = await serverDb
+          .collection("gallery_comments")
+          .where({ user_id: user.uid })
+          .field(["_id"])
+          .get();
+
+        if (comments && comments.length > 0) {
+          for (const comment of comments) {
+            await serverDb
+              .collection("gallery_comments")
+              .doc(comment._id)
+              .update({ username });
+          }
+        }
+      } catch {
+        // Ignore sync errors
+      }
+    }
+
+    // Sync avatar to all comments if changed
+    if (avatar_url !== undefined && avatar_url !== (profile?.avatar_url || "")) {
+      try {
+        const { data: comments } = await serverDb
+          .collection("gallery_comments")
+          .where({ user_id: user.uid })
+          .field(["_id"])
+          .get();
+
+        if (comments && comments.length > 0) {
+          for (const comment of comments) {
+            await serverDb
+              .collection("gallery_comments")
+              .doc(comment._id)
+              .update({ avatar_url });
+          }
+        }
+      } catch {
+        // Ignore sync errors
+      }
     }
 
     // Build updated cookie payload

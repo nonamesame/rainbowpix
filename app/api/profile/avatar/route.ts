@@ -82,6 +82,23 @@ export async function POST(request: NextRequest) {
       }
     } catch {}
 
+    // Sync avatar to all comments
+    try {
+      const { data: comments } = await serverDb
+        .collection("gallery_comments")
+        .where({ user_id: user.uid })
+        .field(["_id"])
+        .get();
+      if (comments && comments.length > 0) {
+        for (const comment of comments) {
+          await serverDb
+            .collection("gallery_comments")
+            .doc(comment._id)
+            .update({ avatar_url: avatarUrl });
+        }
+      }
+    } catch {}
+
     // Build updated cookie with avatar_url
     const updatedUser = {
       uid: user.uid,
@@ -131,6 +148,23 @@ export async function DELETE(request: NextRequest) {
       }
       await serverDb.collection("users").doc(data[0]._id).update({ avatar_url: "" });
     }
+
+    // Sync avatar removal to all comments
+    try {
+      const { data: comments } = await serverDb
+        .collection("gallery_comments")
+        .where({ user_id: user.uid })
+        .field(["_id"])
+        .get();
+      if (comments && comments.length > 0) {
+        for (const comment of comments) {
+          await serverDb
+            .collection("gallery_comments")
+            .doc(comment._id)
+            .update({ avatar_url: "" });
+        }
+      }
+    } catch {}
 
     const updatedUser = {
       uid: user.uid,
