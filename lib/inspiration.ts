@@ -12,6 +12,7 @@ export interface InspirationItem {
   username: string;
   title?: string;
   user_liked?: boolean;
+  comments_count?: number;
   width?: number;
   height?: number;
 }
@@ -21,6 +22,18 @@ export interface GalleryLike {
   user_id: string;
   generation_id: string;
   created_at: string;
+}
+
+export interface GalleryComment {
+  _id: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  generation_id: string;
+  content: string;
+  likes_count: number;
+  created_at: string;
+  user_liked?: boolean;
 }
 
 export function getDisplayName(user: { uid: string; email?: string; phone?: string; username?: string }): string {
