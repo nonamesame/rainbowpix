@@ -85,18 +85,23 @@ export async function POST(request: NextRequest) {
 
     // 2.5 造相每日生成量限制
     if (model === "z-image-turbo") {
-      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" }); // YYYY-MM-DD
-      const usageDoc = await serverDb
-        .collection("model_daily_usage")
-        .where({ date: today, model: "z-image-turbo" })
-        .limit(1)
-        .get();
-      const currentCount = usageDoc.data?.[0]?.count || 0;
-      if (currentCount >= 2000) {
-        return Response.json(
-          { error: "今日该模型已达上限，请明天再来吧！" },
-          { status: 429 }
-        );
+      try {
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" }); // YYYY-MM-DD
+        const usageDoc = await serverDb
+          .collection("model_daily_usage")
+          .where({ date: today, model: "z-image-turbo" })
+          .limit(1)
+          .get();
+        const currentCount = usageDoc.data?.[0]?.count || 0;
+        if (currentCount >= 2000) {
+          return Response.json(
+            { error: "今日该模型已达上限，请明天再来吧！" },
+            { status: 429 }
+          );
+        }
+      } catch (err: any) {
+        // 集合不存在时跳过限额检查
+        if (!err?.message?.includes("Db or Table not exist")) throw err;
       }
     }
 
@@ -143,8 +148,9 @@ export async function POST(request: NextRequest) {
         break;
       }
       case "z-image-turbo": {
-        console.log("[generate] z-image-turbo prompt:", prompt);
+        console.log("[generate] z-image-turbo prompt:", prompt, "size:", `${width}x${height}`);
         imageUrl = await generateModelScope(prompt, width, height);
+        console.log("[generate] z-image-turbo result:", imageUrl?.substring(0, 100));
         break;
       }
       default:
@@ -170,22 +176,27 @@ export async function POST(request: NextRequest) {
 
     // 5.5 造相成功后更新每日用量
     if (model === "z-image-turbo") {
-      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
-      const usageDoc = await serverDb
-        .collection("model_daily_usage")
-        .where({ date: today, model: "z-image-turbo" })
-        .limit(1)
-        .get();
-      if (usageDoc.data?.[0]) {
-        await serverDb.collection("model_daily_usage").doc(usageDoc.data[0]._id).update({
-          count: serverDb.command.inc(1),
-        });
-      } else {
-        await serverDb.collection("model_daily_usage").add({
-          date: today,
-          model: "z-image-turbo",
-          count: 1,
-        });
+      try {
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
+        const usageDoc = await serverDb
+          .collection("model_daily_usage")
+          .where({ date: today, model: "z-image-turbo" })
+          .limit(1)
+          .get();
+        if (usageDoc.data?.[0]) {
+          await serverDb.collection("model_daily_usage").doc(usageDoc.data[0]._id).update({
+            count: serverDb.command.inc(1),
+          });
+        } else {
+          await serverDb.collection("model_daily_usage").add({
+            date: today,
+            model: "z-image-turbo",
+            count: 1,
+          });
+        }
+      } catch (err: any) {
+        // 集合不存在时跳过用量记录
+        if (!err?.message?.includes("Db or Table not exist")) console.error("model_daily_usage update failed:", err);
       }
     }
 

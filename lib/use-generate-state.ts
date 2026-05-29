@@ -26,7 +26,7 @@ interface PersistedState {
 }
 
 const DEFAULTS: PersistedState = {
-  model: "jimeng-4.0",
+  model: "z-image-turbo",
   prompt: "",
   size: "1:1",
   result: null,

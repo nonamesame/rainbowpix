@@ -32,8 +32,10 @@ export async function generateImage(
     }
   );
 
+  console.log("[modelscope] submit response:", JSON.stringify(submitResp.data));
   const taskId = submitResp.data.task_id;
   if (!taskId) {
+    console.error("[modelscope] no task_id in response:", JSON.stringify(submitResp.data));
     throw new Error("ModelScope API 未返回 task_id");
   }
 
@@ -52,6 +54,7 @@ export async function generateImage(
       timeout: 10_000,
     });
 
+    console.log(`[modelscope] poll #${i + 1} response:`, JSON.stringify(result.data));
     const status = result.data.task_status;
     console.log(`[modelscope] task ${taskId} status: ${status}`);
 

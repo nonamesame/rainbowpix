@@ -78,6 +78,7 @@ export async function saveCookiesAndRedirect(
     }
   }
   toast.success(successMessage);
+  try { localStorage.removeItem("rainbowpix_generate_state"); } catch {}
   setTimeout(() => {
     window.location.href = redirectUrl;
   }, 50);
