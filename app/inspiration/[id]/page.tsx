@@ -7,28 +7,8 @@ import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  try {
-    const { data } = await serverDb
-      .collection("generations")
-      .where({ _id: id, published: true })
-      .field(["title", "username", "prompt"])
-      .limit(1)
-      .get();
-    const item = data?.[0];
-    if (!item) return { title: "灵感详情 - RainbowPix" };
-    return {
-      title: `${item.title || item.username || "灵感详情"} - RainbowPix`,
-      description: item.prompt?.slice(0, 160),
-    };
-  } catch {
-    return { title: "灵感详情 - RainbowPix" };
-  }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: "灵感详情 - RainbowPix" };
 }
 
 export default async function InspirationDetailPage({
@@ -58,20 +38,36 @@ export default async function InspirationDetailPage({
     }
   }
 
-  // Fetch item and like status in parallel
-  const [itemResult, likeResult] = await Promise.all([
-    serverDb
-      .collection("generations")
-      .where({ _id: id, published: true })
-      .field([
-        "prompt", "model", "image_url", "reference_image_url",
-        "created_at", "user_id", "username", "likes_count",
-        "watermark_enabled", "title", "comments_count",
-        "width", "height",
-      ])
+  // Fetch item, like status, and author profile in parallel
+  const generationQuery = serverDb
+    .collection("generations")
+    .where({ _id: id, published: true })
+    .field([
+      "prompt", "model", "image_url", "reference_image_url",
+      "created_at", "user_id", "username", "likes_count",
+      "watermark_enabled", "title", "comments_count",
+      "width", "height",
+    ])
+    .limit(1)
+    .get();
+
+  // Derive author query from generation query result (runs in parallel via Promise.all)
+  const authorQuery = generationQuery.then(({ data }) => {
+    const uid = data?.[0]?.user_id;
+    if (!uid) return Promise.resolve(null) as Promise<{ data: Record<string, unknown>[] } | null>;
+    return serverDb
+      .collection("users")
+      .where({ uid })
+      .field(["username", "avatar_url"])
       .limit(1)
-      .get(),
+      .get()
+      .catch(() => null);
+  });
+
+  const [itemResult, likeResult, authorResult] = await Promise.all([
+    generationQuery,
     likePromise,
+    authorQuery,
   ]);
 
   const raw = itemResult.data?.[0];
@@ -83,20 +79,9 @@ export default async function InspirationDetailPage({
 
   const item = { ...raw, user_liked: userLiked };
 
-  // Fetch author's latest profile from users collection
-  try {
-    const { data: authorData } = await serverDb
-      .collection("users")
-      .where({ uid: item.user_id })
-      .field(["username", "avatar_url"])
-      .limit(1)
-      .get();
-    if (authorData && authorData.length > 0) {
-      if (authorData[0].username) item.username = authorData[0].username;
-      item.author_avatar_url = authorData[0].avatar_url || "";
-    }
-  } catch {
-    // users collection may not exist
+  if (authorResult?.data && authorResult.data.length > 0) {
+    if (authorResult.data[0].username) item.username = authorResult.data[0].username as string;
+    item.author_avatar_url = (authorResult.data[0].avatar_url as string) || "";
   }
 
   return (

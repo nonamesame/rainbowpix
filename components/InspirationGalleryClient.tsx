@@ -43,6 +43,25 @@ export default function InspirationGalleryClient({
   } | null>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // Prefetch visible cards so clicks are instant even without hovering
+  useLayoutEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = entry.target.getAttribute("data-item-id");
+            if (id) router.prefetch(`/inspiration/${id}`);
+          }
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    for (const [id, el] of cardRefs.current) {
+      observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [router, items]);
+
   useLayoutEffect(() => {
     const raw = sessionStorage.getItem("inspiration-return-anim");
     if (!raw) return;
@@ -197,6 +216,7 @@ export default function InspirationGalleryClient({
                   }
                 }}
                 data-card
+                data-item-id={item._id}
                 className="mb-3 break-inside-avoid cursor-pointer md:mb-4"
               >
                 <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
@@ -293,6 +313,7 @@ export default function InspirationGalleryClient({
         </div>,
         document.body
       )}
+
     </div>
   );
 }
