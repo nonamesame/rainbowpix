@@ -5,7 +5,7 @@ import { serverDb } from "@/lib/cloudbase/server";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-  const pageSize = 12;
+  const pageSize = 20;
   const from = (page - 1) * pageSize;
 
   // Optional auth for checking like status
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     .field([
       "prompt", "model", "image_url", "reference_image_url",
       "created_at", "user_id", "username", "likes_count",
-      "watermark_enabled", "title", "comments_count",
+      "watermark_enabled", "title", "comments_count", "width", "height",
     ])
     .orderBy("created_at", "desc")
     .skip(from)

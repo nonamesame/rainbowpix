@@ -25,7 +25,7 @@ export default async function Home() {
       .field([
         "prompt", "model", "image_url", "reference_image_url",
         "created_at", "user_id", "username", "likes_count",
-        "watermark_enabled", "title",
+        "watermark_enabled", "title", "width", "height",
       ])
       .orderBy("created_at", "desc")
       .limit(20)

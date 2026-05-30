@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, startTransition } from "react";
+import { useState, useRef, useLayoutEffect, useCallback, useEffect, startTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Palette, Heart, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,8 +16,25 @@ interface Props {
   currentUserId?: string;
 }
 
+interface CardPos {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
+}
+
+function getColumnCount(width: number) {
+  if (width >= 1024) return 4;
+  if (width >= 640) return 3;
+  return 2;
+}
+
+function getGap(width: number) {
+  return width >= 768 ? 16 : 12;
 }
 
 export default function InspirationGalleryClient({
@@ -42,8 +58,151 @@ export default function InspirationGalleryClient({
     phase: "positioning" | "animating";
   } | null>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const positionsRef = useRef<Map<string, CardPos>>(new Map());
+  const [positions, setPositions] = useState<Map<string, CardPos>>(new Map());
+  const [containerHeight, setContainerHeight] = useState(0);
+  const renderedIdsRef = useRef<Set<string>>(new Set());
 
-  // Prefetch visible cards so clicks are instant even without hovering
+  // Ref callback: sync position into ref, batch state update at end of render
+  const cardRefCallback = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (!el) {
+      cardRefs.current.delete(id);
+      return;
+    }
+    cardRefs.current.set(id, el);
+
+    // Skip if we already calculated positions for this item set
+    if (renderedIdsRef.current.has(id)) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Check if ALL items have refs
+    const allReady = items.every((it) => cardRefs.current.has(it._id));
+    if (!allReady) return;
+
+    // Mark as rendered so we don't recalculate on every ref callback
+    items.forEach((it) => renderedIdsRef.current.add(it._id));
+
+    const containerWidth = container.offsetWidth;
+    const cols = getColumnCount(containerWidth);
+    const gap = getGap(containerWidth);
+    const colWidth = (containerWidth - gap * (cols - 1)) / cols;
+    const colHeights = new Array(cols).fill(0);
+    const newPositions = new Map<string, CardPos>();
+
+    for (const item of items) {
+      let minCol = 0;
+      for (let c = 1; c < cols; c++) {
+        if (colHeights[c] < colHeights[minCol]) minCol = c;
+      }
+      const el = cardRefs.current.get(item._id);
+      const height = el?.offsetHeight || 0;
+      const left = minCol * (colWidth + gap);
+      const top = colHeights[minCol];
+      newPositions.set(item._id, { top, left, width: colWidth, height });
+      colHeights[minCol] = top + height + gap;
+    }
+
+    positionsRef.current = newPositions;
+    // Batch: set positions + height in one render
+    setPositions(new Map(newPositions));
+    setContainerHeight(Math.max(...colHeights, 0));
+  }, [items]);
+
+  // Reset rendered IDs when items change (new items added via load more)
+  useEffect(() => {
+    // Only clear IDs for items that are NEW (not in previous set)
+    const newIds = items.filter((it) => !renderedIdsRef.current.has(it._id)).map((it) => it._id);
+    if (newIds.length > 0) {
+      // Don't clear — just let the new items' ref callbacks run
+      // The allReady check will handle it
+    }
+  }, [items]);
+
+  // ResizeObserver — recalculate on container resize
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => {
+      const containerWidth = container.offsetWidth;
+      const cols = getColumnCount(containerWidth);
+      const gap = getGap(containerWidth);
+      const colWidth = (containerWidth - gap * (cols - 1)) / cols;
+      const colHeights = new Array(cols).fill(0);
+      const newPositions = new Map<string, CardPos>();
+
+      for (const item of items) {
+        let minCol = 0;
+        for (let c = 1; c < cols; c++) {
+          if (colHeights[c] < colHeights[minCol]) minCol = c;
+        }
+        const el = cardRefs.current.get(item._id);
+        const height = el?.offsetHeight || 0;
+        const left = minCol * (colWidth + gap);
+        const top = colHeights[minCol];
+        newPositions.set(item._id, { top, left, width: colWidth, height });
+        colHeights[minCol] = top + height + gap;
+      }
+
+      positionsRef.current = newPositions;
+      setPositions(new Map(newPositions));
+      setContainerHeight(Math.max(...colHeights, 0));
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [items]);
+
+  // Recalculate when images finish loading
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const images = container.querySelectorAll("img");
+    const pending = { count: 0 };
+    const recalc = () => {
+      const containerWidth = container.offsetWidth;
+      const cols = getColumnCount(containerWidth);
+      const gap = getGap(containerWidth);
+      const colWidth = (containerWidth - gap * (cols - 1)) / cols;
+      const colHeights = new Array(cols).fill(0);
+      const newPositions = new Map<string, CardPos>();
+      for (const item of items) {
+        let minCol = 0;
+        for (let c = 1; c < cols; c++) {
+          if (colHeights[c] < colHeights[minCol]) minCol = c;
+        }
+        const el = cardRefs.current.get(item._id);
+        const height = el?.offsetHeight || 0;
+        const left = minCol * (colWidth + gap);
+        const top = colHeights[minCol];
+        newPositions.set(item._id, { top, left, width: colWidth, height });
+        colHeights[minCol] = top + height + gap;
+      }
+      positionsRef.current = newPositions;
+      setPositions(new Map(newPositions));
+      setContainerHeight(Math.max(...colHeights, 0));
+    };
+    const onLoad = () => {
+      pending.count--;
+      if (pending.count <= 0) recalc();
+    };
+    images.forEach((img) => {
+      if (!(img as HTMLImageElement).complete) {
+        pending.count++;
+        img.addEventListener("load", onLoad, { once: true });
+        img.addEventListener("error", onLoad, { once: true });
+      }
+    });
+    return () => {
+      images.forEach((img) => {
+        img.removeEventListener("load", onLoad);
+        img.removeEventListener("error", onLoad);
+      });
+    };
+  }, [items]);
+
+  // Prefetch visible cards
   useLayoutEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -62,28 +221,32 @@ export default function InspirationGalleryClient({
     return () => observer.disconnect();
   }, [router, items]);
 
-  useLayoutEffect(() => {
+  // Return animation
+  useEffect(() => {
     const raw = sessionStorage.getItem("inspiration-return-anim");
     if (!raw) return;
     sessionStorage.removeItem("inspiration-return-anim");
     try {
       const { id, top, left, width, height } = JSON.parse(raw);
-      const el = cardRefs.current.get(id);
-      if (!el) return;
-      const target = el.getBoundingClientRect();
-      if (target.width === 0 || target.height === 0) return;
       const item = items.find((it) => it._id === id);
       if (!item) return;
-      // Save natural position, then hide original card
-      const natural = { top: target.top, left: target.left, width: target.width, height: target.height };
-      // Phase 1: position clone at detail page location
-      setReturnAnim({ id, item, from: { top, left, width, height }, to: natural, phase: "positioning" });
-      // Phase 2: after paint, animate clone to natural position
-      requestAnimationFrame(() => {
+      const tryAnimate = () => {
+        const el = cardRefs.current.get(id);
+        if (!el) return;
+        const target = el.getBoundingClientRect();
+        if (target.width === 0 || target.height === 0) {
+          requestAnimationFrame(tryAnimate);
+          return;
+        }
+        const natural = { top: target.top, left: target.left, width: target.width, height: target.height };
+        setReturnAnim({ id, item, from: { top, left, width, height }, to: natural, phase: "positioning" });
         requestAnimationFrame(() => {
-          setReturnAnim((prev) => prev ? { ...prev, phase: "animating" } : null);
+          requestAnimationFrame(() => {
+            setReturnAnim((prev) => prev ? { ...prev, phase: "animating" } : null);
+          });
         });
-      });
+      };
+      requestAnimationFrame(() => requestAnimationFrame(tryAnimate));
     } catch {}
   }, [items]);
 
@@ -197,63 +360,68 @@ export default function InspirationGalleryClient({
 
         {/* Masonry Grid */}
         {items.length > 0 ? (
-          <div className="columns-2 gap-3 sm:columns-3 md:columns-4 md:gap-4">
-            {items.map((item) => (
-              <motion.div
-                key={item._id}
-                ref={(el) => { if (el) cardRefs.current.set(item._id, el); }}
-                layoutId={`card-${item._id}`}
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={returnAnim?.id === item._id ? { visibility: "hidden" } : undefined}
-                role="button"
-                tabIndex={0}
-                onMouseEnter={() => handleCardHover(item)}
-                onClick={(e) => handleCardClick(item, e)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    router.push(`/inspiration/${item._id}`, { scroll: false });
-                  }
-                }}
-                data-card
-                data-item-id={item._id}
-                className="mb-3 break-inside-avoid cursor-pointer md:mb-4"
-              >
-                <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-                  <motion.img
-                    layoutId={`image-${item._id}`}
-                    src={toProxyUrl(item.image_url)}
-                    alt={item.prompt}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full block"
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                  <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                    <p className="truncate text-xs font-medium text-white drop-shadow-md">
-                      {item.title || truncate(item.prompt, 20)}
-                    </p>
+          <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
+            {items.map((item) => {
+              const pos = positions.get(item._id);
+              return (
+                <div
+                  key={item._id}
+                  ref={(el) => cardRefCallback(item._id, el)}
+                  role="button"
+                  tabIndex={0}
+                  onMouseEnter={() => handleCardHover(item)}
+                  onClick={(e) => handleCardClick(item, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/inspiration/${item._id}`, { scroll: false });
+                    }
+                  }}
+                  data-card
+                  data-item-id={item._id}
+                  className="absolute cursor-pointer"
+                  style={pos ? {
+                    top: pos.top,
+                    left: pos.left,
+                    width: pos.width,
+                    visibility: returnAnim?.id === item._id ? "hidden" : "visible",
+                  } : { visibility: "hidden" }}
+                >
+                  <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                    <img
+                      src={toProxyUrl(item.image_url)}
+                      alt={item.prompt}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full block object-cover"
+                      style={item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : undefined}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                    <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      <p className="truncate text-xs font-medium text-white drop-shadow-md">
+                        {item.title || truncate(item.prompt, 20)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => handleCardLike(e, item)}
+                      disabled={likingIds.has(item._id)}
+                      className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
+                        item.user_liked
+                          ? "text-red-500"
+                          : "text-white hover:text-red-500"
+                      }`}
+                    >
+                      <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
+                      <span>{item.likes_count || 0}</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={(e) => handleCardLike(e, item)}
-                    disabled={likingIds.has(item._id)}
-                    className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
-                      item.user_liked
-                        ? "text-red-500"
-                        : "text-white hover:text-red-500"
-                    }`}
-                  >
-                    <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
-                    <span>{item.likes_count || 0}</span>
-                  </button>
                 </div>
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -286,34 +454,33 @@ export default function InspirationGalleryClient({
         )}
       </div>
 
-      {/* Return animation clone — rendered in portal to escape masonry stacking context */}
+      {/* Return animation clone */}
       {returnAnim && createPortal(
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             top: returnAnim.phase === "positioning" ? returnAnim.from.top : returnAnim.to.top,
             left: returnAnim.phase === "positioning" ? returnAnim.from.left : returnAnim.to.left,
             width: returnAnim.phase === "positioning" ? returnAnim.from.width : returnAnim.to.width,
             height: returnAnim.phase === "positioning" ? returnAnim.from.height : returnAnim.to.height,
             zIndex: 9999,
+            overflow: "hidden",
+            borderRadius: "0.5rem",
             transition: returnAnim.phase === "animating"
               ? "all 0.35s cubic-bezier(0.2, 0, 0, 1)"
               : "none",
           }}
           onTransitionEnd={() => setReturnAnim(null)}
         >
-          <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={toProxyUrl(returnAnim.item.image_url)}
-              alt={returnAnim.item.prompt}
-              className="w-full block"
-            />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={toProxyUrl(returnAnim.item.image_url)}
+            alt={returnAnim.item.prompt}
+            className="w-full h-full block object-cover"
+          />
         </div>,
         document.body
       )}
-
     </div>
   );
 }
