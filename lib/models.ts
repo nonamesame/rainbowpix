@@ -44,17 +44,21 @@ export function getPixelSize(aspectRatio: string, modelId: string): { w: number;
 }
 
 export function widthHeightToAspectRatio(width: number, height: number): string {
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-  const d = gcd(width, height);
-  const normalized = `${width / d}:${height / d}`;
-  const knownRatios: Record<string, string> = {
-    "1:1": "1:1",
-    "3:4": "3:4",
-    "4:3": "4:3",
-    "9:16": "9:16",
-    "16:9": "16:9",
-  };
-  return knownRatios[normalized] || "1:1";
+  if (!width || !height) return "1:1";
+  const ratio = width / height;
+  // Use approximate matching — GPT Image 2 uses 1792×1024 which normalizes to 7:4 via GCD,
+  // but actually represents 16:9. Approximate matching handles such non-integer-ratio pixel sizes.
+  const knownRatios: { label: string; value: number }[] = [
+    { label: "1:1", value: 1 },
+    { label: "3:4", value: 3 / 4 },
+    { label: "4:3", value: 4 / 3 },
+    { label: "9:16", value: 9 / 16 },
+    { label: "16:9", value: 16 / 9 },
+  ];
+  for (const kr of knownRatios) {
+    if (Math.abs(ratio - kr.value) / kr.value < 0.02) return kr.label;
+  }
+  return "1:1";
 }
 
 export const models: Model[] = [

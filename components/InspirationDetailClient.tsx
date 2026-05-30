@@ -244,8 +244,8 @@ export default function InspirationDetailClient({
                 />
                 {/* Title & date overlay */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent px-4 pb-3 pt-8">
-                  <h2 className="text-base font-semibold text-white drop-shadow">
-                    {item.title || "作品详情"}
+                  <h2 className="text-base font-semibold text-white drop-shadow line-clamp-1">
+                    {item.title || item.prompt.slice(0, 40)}
                   </h2>
                   <p className="mt-0.5 text-xs text-white/80">
                     {formatDate(item.created_at)}

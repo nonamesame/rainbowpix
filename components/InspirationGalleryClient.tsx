@@ -285,6 +285,66 @@ export default function InspirationGalleryClient({
     };
   }, [items]);
 
+  // Real-time poll: refresh page 1 periodically so new publications appear immediately.
+  // Pauses when the tab is hidden to save bandwidth.
+  useEffect(() => {
+    let pending = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const POLL_MS = 10_000;
+
+    async function refresh() {
+      if (pending || document.visibilityState !== "visible") return;
+      pending = true;
+      try {
+        const res = await fetch("/api/inspiration?page=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.items?.length) {
+          // Detect change by comparing first item id and total
+          const firstId = data.items[0]?._id;
+          const currentFirstId = modItems?.[0]?._id;
+          const totalChanged = typeof data.total === "number" && data.total !== modItems?.length;
+          if (firstId !== currentFirstId || totalChanged) {
+            modItems = data.items;
+            modPage = 1;
+            renderedIdsRef.current.clear();
+            cardRefs.current.clear();
+            setItems(data.items);
+            setPage(1);
+            if (typeof data.total === "number") setTotal(data.total);
+          }
+        }
+      } finally {
+        pending = false;
+      }
+    }
+
+    function tick() {
+      refresh();
+      timer = setTimeout(tick, POLL_MS);
+    }
+
+    // Start when visible, pause/resume with visibility
+    function onVisibility() {
+      if (document.visibilityState === "visible") {
+        refresh(); // immediate refresh on tab switch
+        if (!timer) timer = setTimeout(tick, POLL_MS);
+      } else {
+        if (timer) { clearTimeout(timer); timer = null; }
+      }
+    }
+
+    if (document.visibilityState === "visible") {
+      refresh(); // immediate refresh on mount
+      timer = setTimeout(tick, POLL_MS);
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   // Prefetch visible cards
   useLayoutEffect(() => {
     const observer = new IntersectionObserver(

@@ -158,11 +158,29 @@ export async function POST(
 
   const generation = genData[0];
 
+  // Fetch latest user info from users collection to ensure accurate display
+  let latestUsername = getDisplayName(fullUser);
+  let latestAvatarUrl = fullUser.avatar_url || null;
+  try {
+    const { data: userData } = await serverDb
+      .collection("users")
+      .where({ uid: user.uid })
+      .field(["username", "avatar_url"])
+      .limit(1)
+      .get();
+    if (userData && userData.length > 0) {
+      latestUsername = userData[0].username || latestUsername;
+      latestAvatarUrl = userData[0].avatar_url || latestAvatarUrl;
+    }
+  } catch {
+    // users collection may not exist yet, keep cookie data
+  }
+
   // Create comment
   const comment = {
     user_id: user.uid,
-    username: getDisplayName(fullUser),
-    avatar_url: fullUser.avatar_url || null,
+    username: latestUsername,
+    avatar_url: latestAvatarUrl,
     generation_id: generationId,
     content,
     likes_count: 0,

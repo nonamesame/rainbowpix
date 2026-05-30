@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { serverDb } from "@/lib/cloudbase/server";
 import { parseUserFromCookie } from "@/lib/notifications";
 import { getDisplayName } from "@/lib/inspiration";
@@ -59,6 +60,9 @@ export async function POST(
       // gallery_likes collection may not exist yet
     }
   }
+
+  // Revalidate the inspiration gallery so new publications appear immediately
+  revalidatePath("/");
 
   return Response.json({
     published: !!published,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "react-hot-toast";
 import AppShell from "@/components/AppShell";
 import NavigationProgress from "@/components/NavigationProgress";
@@ -36,7 +37,9 @@ export default function RootLayout({
           Reads sessionStorage for return-animation ID and hides the target card via CSS
           before the browser paints the restored page.
         */}
-        <script
+        <Script
+          id="inspiration-return-guard"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: `
             (function() {
               try {
