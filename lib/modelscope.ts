@@ -23,8 +23,7 @@ export async function generateImage(
     {
       model: "Tongyi-MAI/Z-Image-Turbo",
       prompt,
-      // ModelScope API 目前不支持自定义尺寸参数，使用默认
-      // width, height 暂时保留供将来使用
+      size: `${width}x${height}`,
     },
     {
       headers: { ...commonHeaders, "X-ModelScope-Async-Mode": "true" },

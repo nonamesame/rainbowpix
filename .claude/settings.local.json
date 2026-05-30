@@ -111,7 +111,13 @@
       "Bash(echo \"exit: $?\")",
       "Bash(xargs -I{} echo \"Opening: {}\")",
       "Bash(xargs -I{} echo \"Closing: {}\")",
-      "WebFetch(domain:modelscope.cn)"
+      "WebFetch(domain:modelscope.cn)",
+      "WebFetch(domain:help.aliyun.com)",
+      "Bash(grep -oE '.{0,100}width.{0,100}')",
+      "Bash(grep -oE '.{0,200}\\(size|width|height\\).{0,200}')",
+      "Bash(grep -oE '.{0,100}size.{0,100}')",
+      "Bash(grep -oE '\"[^\"]{10,}\"')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.get\\('Data',{}\\).items\\(\\) if k in ['Name','Description','SupportApiInference','Tags']}, ensure_ascii=False, indent=2\\)\\)\")"
     ]
   }
 }
