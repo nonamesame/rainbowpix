@@ -209,7 +209,7 @@ export default function AppShell({ children }: Props) {
         markAllRead={markAllRead}
         deleteNotification={deleteNotification}
       />
-      <main className="md:ml-16 pb-16 md:pb-0">{children}</main>
+      <main className="md:ml-16 h-screen overflow-y-auto overscroll-contain pb-16 md:pb-0">{children}</main>
       <BottomNav user={user} authChecked={authChecked} unreadCount={unreadCount} />
       <ScrollToTop />
 

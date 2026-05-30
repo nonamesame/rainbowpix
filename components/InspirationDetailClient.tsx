@@ -6,6 +6,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Heart, Copy, Sparkles, Download, Eye, Loader2, MessageCircle, ArrowLeft } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
+import { useScrollContainer } from "@/components/ScrollContainer";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export default function InspirationDetailClient({
   currentUserId,
 }: Props) {
   const router = useRouter();
+  const scrollContainer = useScrollContainer();
   const [liked, setLiked] = useState(item.user_liked || false);
   const [likesCount, setLikesCount] = useState(item.likes_count || 0);
   const [liking, setLiking] = useState(false);
@@ -104,8 +106,8 @@ export default function InspirationDetailClient({
   }, []);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    scrollContainer.scrollTo(0, 0);
+  }, [scrollContainer]);
 
   useEffect(() => {
     fetch(`/api/users/${item.user_id}/stats`)
@@ -192,7 +194,7 @@ export default function InspirationDetailClient({
   }
 
   return (
-    <div className="min-h-screen">
+    <div>
       <div className="px-4 py-6 md:px-8 lg:px-12">
         <div className="mx-auto max-w-6xl">
           {/* Back button */}
@@ -208,8 +210,6 @@ export default function InspirationDetailClient({
                   left: rect.left,
                   width: rect.width,
                   height: rect.height,
-                  scrollY: window.scrollY,
-                  scrollX: window.scrollX,
                 }));
               }
               router.back();

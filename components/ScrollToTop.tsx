@@ -2,21 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { ArrowUp } from "lucide-react";
+import { useScrollContainer } from "@/components/ScrollContainer";
 
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
+  const scrollContainer = useScrollContainer();
 
   useEffect(() => {
+    const el = scrollContainer;
+    if (!el) return;
+
     function toggleVisibility() {
-      setIsVisible(window.scrollY > 300);
+      setIsVisible(el.scrollTop > 300);
     }
 
-    window.addEventListener("scroll", toggleVisibility);
-    return () => window.removeEventListener("scroll", toggleVisibility);
-  }, []);
+    el.addEventListener("scroll", toggleVisibility, { passive: true });
+    return () => el.removeEventListener("scroll", toggleVisibility);
+  }, [scrollContainer]);
 
   function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (!isVisible) return null;

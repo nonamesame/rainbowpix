@@ -31,6 +31,27 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        {/*
+          Blocking script: runs before React hydrates to prevent flash on bfcache restore.
+          Reads sessionStorage for return-animation ID and hides the target card via CSS
+          before the browser paints the restored page.
+        */}
+        <script
+          dangerouslySetInnerHTML={{ __html: `
+            (function() {
+              try {
+                var raw = sessionStorage.getItem('inspiration-return-anim');
+                if (raw) {
+                  var id = JSON.parse(raw).id;
+                  document.body.setAttribute('data-return', id);
+                  var s = document.createElement('style');
+                  s.textContent = '[data-return] [data-card][data-item-id="' + id + '"]{visibility:hidden!important}';
+                  document.head.appendChild(s);
+                }
+              } catch(e) {}
+            })();
+          ` }}
+        />
         <NavigationProgress />
         <AppShell>{children}</AppShell>
         <Toaster position="top-center" />

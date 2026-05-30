@@ -37,15 +37,97 @@ function getGap(width: number) {
   return width >= 768 ? 16 : 12;
 }
 
+const STORAGE_KEY = "inspiration-gallery-page";
+
+// Module-level store: survives React component remounts caused by RSC reconciliation.
+// Without this, each remount resets useState to initialItems, losing loaded-more data.
+let modItems: InspirationItem[] | null = null;
+let modPage = 1;
+
+function loadSavedPage(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const page = parseInt(raw, 10);
+    return page > 1 ? page : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function InspirationGalleryClient({
   initialItems,
   total: initialTotal,
   currentUserId,
 }: Props) {
-  const [items, setItems] = useState<InspirationItem[]>(initialItems);
+  const savedPage = useRef(loadSavedPage());
+
+  // Detect return-animation on mount so the card is hidden before first paint.
+  // Sets body[data-return] so CSS can hide the card immediately (before React effects run).
+  const returnAnimIdRef = useRef<string | null>(null);
+  if (returnAnimIdRef.current === null && typeof window !== "undefined") {
+    try {
+      const raw = sessionStorage.getItem("inspiration-return-anim");
+      if (raw) {
+        const id = JSON.parse(raw).id;
+        returnAnimIdRef.current = id;
+        // Sync fallback in case blocking script didn't run (e.g. first visit)
+        document.body.setAttribute("data-return", id);
+      }
+    } catch {}
+  }
+
+  // Initialize module store from server data on first load
+  if (modItems === null) {
+    modItems = initialItems;
+    modPage = 1;
+  }
+
+  const [items, setItems] = useState<InspirationItem[]>(modItems);
   const router = useRouter();
 
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(modPage);
+
+  // Sync module store whenever state changes
+  const syncMod = useCallback((newItems: InspirationItem[], newPage: number) => {
+    modItems = newItems;
+    modPage = newPage;
+  }, []);
+
+  // If returning from detail with more pages loaded, re-fetch them.
+  // Uses module-level modItems to survive RSC remounts.
+  useEffect(() => {
+    const targetPage = savedPage.current;
+    if (!targetPage || targetPage <= 1) return;
+    savedPage.current = null; // only run once
+
+    (async () => {
+      try {
+        const pageNumbers = Array.from({ length: targetPage - 1 }, (_, i) => i + 2);
+        const results = await Promise.all(
+          pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
+        );
+        const allExtra = results.flatMap((r) => r.items || []);
+        if (allExtra.length > 0) {
+          // Always append to modItems (which survives remounts), with dedup
+          const existingIds = new Set((modItems || []).map((it) => it._id));
+          const fresh = allExtra.filter((it) => !existingIds.has(it._id));
+          const merged = [...(modItems || []), ...fresh];
+          modItems = merged;
+          modPage = targetPage;
+          setItems(merged);
+          setPage(targetPage);
+        } else {
+          modPage = targetPage;
+          setPage(targetPage);
+        }
+      } catch (e) {
+        console.error("[Gallery] re-fetch error:", e);
+      }
+    })();
+  }, []);
+
   const [total, setTotal] = useState(initialTotal);
   const [loadingMore, setLoadingMore] = useState(false);
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
@@ -111,15 +193,16 @@ export default function InspirationGalleryClient({
     setContainerHeight(Math.max(...colHeights, 0));
   }, [items]);
 
-  // Reset rendered IDs when items change (new items added via load more)
-  useEffect(() => {
-    // Only clear IDs for items that are NEW (not in previous set)
-    const newIds = items.filter((it) => !renderedIdsRef.current.has(it._id)).map((it) => it._id);
-    if (newIds.length > 0) {
-      // Don't clear — just let the new items' ref callbacks run
-      // The allReady check will handle it
-    }
-  }, [items]);
+  // Reset refs when items change so positions are recalculated.
+  // Must happen during render (not in effect) because ref callbacks fire
+  // during commit phase BEFORE effects — if we clear in effect, ref callbacks
+  // already ran with stale refs and skipped position calculation.
+  const prevItemsRef = useRef(items);
+  if (prevItemsRef.current !== items) {
+    prevItemsRef.current = items;
+    renderedIdsRef.current.clear();
+    cardRefs.current.clear();
+  }
 
   // ResizeObserver — recalculate on container resize
   useEffect(() => {
@@ -221,8 +304,40 @@ export default function InspirationGalleryClient({
     return () => observer.disconnect();
   }, [router, items]);
 
-  // Return animation
+  // Restore scroll position when returning from detail page
+  // Depends on containerHeight — only restores AFTER masonry calculates positions
+  const scrollRestoredRef = useRef(false);
+  const prevItemsLenRef = useRef(0);
+  const prevHeightRef = useRef(0);
+  const [scrollReady, setScrollReady] = useState(false);
   useEffect(() => {
+    // Reset guard when items or containerHeight change (e.g. load more, masonry recalc)
+    // so scroll can be restored again with the new layout
+    if (prevItemsLenRef.current !== items.length || prevHeightRef.current !== containerHeight) {
+      prevItemsLenRef.current = items.length;
+      prevHeightRef.current = containerHeight;
+      scrollRestoredRef.current = false;
+    }
+    if (scrollRestoredRef.current) return;
+    const saved = sessionStorage.getItem("inspiration-scroll");
+    if (saved === null) {
+      scrollRestoredRef.current = true;
+      setScrollReady(true);
+      return;
+    }
+    if (containerHeight === 0) return; // wait for masonry to calculate positions
+    scrollRestoredRef.current = true;
+    const scrollTarget = Number(saved);
+    const mainEl = document.querySelector("main");
+    if (!mainEl) return;
+    mainEl.scrollTop = scrollTarget;
+    sessionStorage.removeItem("inspiration-scroll");
+    setScrollReady(true);
+  }, [containerHeight, items.length]);
+
+  // Return animation — only after scroll is restored so card positions are correct
+  useEffect(() => {
+    if (!scrollReady) return;
     const raw = sessionStorage.getItem("inspiration-return-anim");
     if (!raw) return;
     sessionStorage.removeItem("inspiration-return-anim");
@@ -239,6 +354,8 @@ export default function InspirationGalleryClient({
           return;
         }
         const natural = { top: target.top, left: target.left, width: target.width, height: target.height };
+        returnAnimIdRef.current = null;
+        document.body.removeAttribute("data-return"); // CSS hiding no longer needed, returnAnim state takes over
         setReturnAnim({ id, item, from: { top, left, width, height }, to: natural, phase: "positioning" });
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -248,7 +365,7 @@ export default function InspirationGalleryClient({
       };
       requestAnimationFrame(() => requestAnimationFrame(tryAnimate));
     } catch {}
-  }, [items]);
+  }, [scrollReady, items]);
 
   function handleCardClick(item: InspirationItem, e: React.MouseEvent) {
     const card = (e.target as HTMLElement).closest("[data-card]");
@@ -261,6 +378,13 @@ export default function InspirationGalleryClient({
         width: rect.width,
         height: rect.height,
       }));
+    }
+    // Persist page number for restoration on back-navigation
+    persistPage(page);
+    // Save scroll container position for restoration on return
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      sessionStorage.setItem("inspiration-scroll", String(mainEl.scrollTop));
     }
     startTransition(() => {
       router.push(`/inspiration/${item._id}`, { scroll: false });
@@ -290,26 +414,32 @@ export default function InspirationGalleryClient({
     }, 400);
     const wasLiked = item.user_liked ?? false;
     const newCount = wasLiked ? (item.likes_count || 1) - 1 : (item.likes_count || 0) + 1;
-    setItems((prev) =>
-      prev.map((it) =>
+    setItems((prev) => {
+      const next = prev.map((it) =>
         it._id === item._id ? { ...it, user_liked: !wasLiked, likes_count: newCount } : it
-      )
-    );
+      );
+      syncMod(next, modPage);
+      return next;
+    });
     try {
       const res = await fetch(`/api/inspiration/${item._id}/like`, { method: "POST" });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setItems((prev) =>
-        prev.map((it) =>
+      setItems((prev) => {
+        const next = prev.map((it) =>
           it._id === item._id ? { ...it, user_liked: data.liked, likes_count: data.likes_count } : it
-        )
-      );
+        );
+        syncMod(next, modPage);
+        return next;
+      });
     } catch {
-      setItems((prev) =>
-        prev.map((it) =>
+      setItems((prev) => {
+        const next = prev.map((it) =>
           it._id === item._id ? { ...it, user_liked: wasLiked, likes_count: item.likes_count || 0 } : it
-        )
-      );
+        );
+        syncMod(next, modPage);
+        return next;
+      });
       toast.error("操作失败，请重试");
     } finally {
       setLikingIds((prev) => {
@@ -322,14 +452,27 @@ export default function InspirationGalleryClient({
 
   const hasMore = total > 0 && items.length < total;
 
+  // Persist only page number so it survives back-navigation remount
+  const persistPage = useCallback((currentPage: number) => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, String(currentPage));
+    } catch {}
+  }, []);
+
   async function loadMore() {
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/inspiration?page=${page + 1}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setItems((prev) => [...prev, ...data.items]);
-      setPage((p) => p + 1);
+      const newPage = page + 1;
+      setItems((prev) => {
+        const next = [...prev, ...data.items];
+        syncMod(next, newPage);
+        return next;
+      });
+      setPage(newPage);
+      persistPage(newPage);
     } catch {
       toast.error("加载失败，请重试");
     } finally {
@@ -338,7 +481,7 @@ export default function InspirationGalleryClient({
   }
 
   return (
-    <div className="min-h-screen">
+    <div>
       <div className="px-6 py-6 md:px-12 lg:px-20">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -384,7 +527,7 @@ export default function InspirationGalleryClient({
                     top: pos.top,
                     left: pos.left,
                     width: pos.width,
-                    visibility: returnAnim?.id === item._id ? "hidden" : "visible",
+                    visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
                   } : { visibility: "hidden" }}
                 >
                   <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
