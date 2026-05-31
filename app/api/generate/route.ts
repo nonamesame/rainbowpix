@@ -7,7 +7,7 @@ import { downloadAndUpload, uploadBase64 } from "@/lib/upload";
 import { generateImage as generateJimeng } from "@/lib/jimeng";
 import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
 import { generateImage as generateModelScope } from "@/lib/modelscope";
-import { getPixelSize } from "@/lib/models";
+import { getPixelSize, models } from "@/lib/models";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -74,10 +74,16 @@ export async function POST(request: NextRequest) {
     // 2. 解析 FormData
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
-    const model = (formData.get("model") as string) || "jimeng-4.0";
+    const model = (formData.get("model") as string) || "z-image-turbo";
     const aspectRatio = (formData.get("aspect_ratio") as string) || "1:1";
     const { w: width, h: height } = getPixelSize(aspectRatio, model);
     const referenceImageFiles = formData.getAll("reference_image") as File[];
+
+    // 2.1 拒绝已隐藏的模型
+    const modelConfig = models.find((m) => m.id === model);
+    if (modelConfig?.hidden) {
+      return Response.json({ error: `模型 ${model} 暂不可用` }, { status: 400 });
+    }
 
     if (!prompt) {
       return Response.json({ error: "prompt 为必填参数" }, { status: 400 });
