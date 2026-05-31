@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Notification } from "@/lib/notifications";
 
-const POLL_INTERVAL = 60_000; // 60秒轮询一次
+const POLL_INTERVAL = 30_000; // 30秒轮询一次
 
 export function useNotifications(uid: string | null) {
   const [unreadCount, setUnreadCount] = useState(0);
