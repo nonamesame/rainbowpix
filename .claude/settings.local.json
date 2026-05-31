@@ -118,7 +118,14 @@
       "Bash(grep -oE '.{0,100}size.{0,100}')",
       "Bash(grep -oE '\"[^\"]{10,}\"')",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.get\\('Data',{}\\).items\\(\\) if k in ['Name','Description','SupportApiInference','Tags']}, ensure_ascii=False, indent=2\\)\\)\")",
-      "mcp__playwright__browser_navigate"
+      "mcp__playwright__browser_navigate",
+      "Bash(npx vercel *)",
+      "WebFetch(domain:image.oblivionis.net)",
+      "Bash(nslookup *)",
+      "WebFetch(domain:pages.cloud.tencent.com)",
+      "WebFetch(domain:cloud.tencent.com)",
+      "WebFetch(domain:edgeone.ai)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -20,10 +20,10 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.16.0",
-    "next": "16.2.6",
+    "next": "^15.5.18",
     "next-themes": "^0.4.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-easy-crop": "^5.5.7",
     "react-hot-toast": "^2.6.0",
     "replicate": "^1.4.0",
@@ -41,7 +41,7 @@
     "@types/react-dom": "^19",
     "@types/react-easy-crop": "^1.16.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "^15.5.18",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
