@@ -163,9 +163,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                 }`}
               >
                 <span>{tab.label}</span>
-                {tabCounts[tab.key] > 0 && (
-                  <span className="text-[10px] opacity-60">{tabCounts[tab.key]}</span>
-                )}
+                <span className="text-[10px] opacity-60">{tabCounts[tab.key]}</span>
               </button>
             ))}
           </div>
@@ -208,7 +206,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                           <span className={`text-sm font-medium min-w-0 break-all ${isSelected ? "text-brand-dark" : "text-gray-900"}`}>
                             {n.title}
                           </span>
-                          {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-brand-light0" />}
+                          {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-brand" />}
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{n.body}</p>
                         <span className="mt-1 block text-[10px] text-gray-400">
