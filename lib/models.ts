@@ -6,6 +6,8 @@ export interface Model {
   creditCost: number;
   supportsReferenceImage: boolean;
   maxReferenceImages: number;
+  /** When true, model is excluded from user-facing selection UI. */
+  hidden?: boolean;
 }
 
 export const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9"] as const;
@@ -70,6 +72,7 @@ export const models: Model[] = [
     creditCost: 1,
     supportsReferenceImage: false,
     maxReferenceImages: 0,
+    hidden: true,
   },
   {
     id: "jimeng-4.0",
@@ -79,6 +82,7 @@ export const models: Model[] = [
     creditCost: 1,
     supportsReferenceImage: false,
     maxReferenceImages: 0,
+    hidden: true,
   },
   {
     id: "gpt-image-2",

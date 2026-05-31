@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { models } from "@/lib/models";
+
+const HIDDEN_MODELS = new Set(models.filter((m) => m.hidden).map((m) => m.id));
 
 const STORAGE_KEY = "rainbowpix_generate_state";
 
@@ -26,7 +29,7 @@ interface PersistedState {
 }
 
 const DEFAULTS: PersistedState = {
-  model: "z-image-turbo",
+  model: "gpt-image-2",
   prompt: "",
   size: "1:1",
   result: null,
@@ -70,7 +73,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
     }
     const saved = load();
     if (saved) {
-      if (saved.model) setModel(saved.model);
+      if (saved.model && !HIDDEN_MODELS.has(saved.model)) setModel(saved.model);
       if (saved.prompt) setPrompt(saved.prompt);
       if (saved.size) setSize(saved.size);
       if (saved.result) setResult(saved.result);

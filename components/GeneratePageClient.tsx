@@ -531,7 +531,7 @@ export default function GeneratePageClient({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 p-1 [&_[data-slot=select-item]]:pr-1.5 [&_[class*=absolute][class*=right-2]]:hidden">
-                {models.map((m) => (
+                {models.filter((m) => !m.hidden).map((m) => (
                   <SelectItem key={m.id} value={m.id} className="rounded-lg px-3 py-2 text-xs">
                     {m.name}
                   </SelectItem>
