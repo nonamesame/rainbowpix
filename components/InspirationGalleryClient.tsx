@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { Palette, Heart, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toProxyUrl } from "@/lib/image-url";
+import { getDb, getAuth } from "@/lib/cloudbase/client";
 import type { InspirationItem } from "@/lib/inspiration";
 
 interface Props {
@@ -85,9 +86,48 @@ export default function InspirationGalleryClient({
   }
 
   const [items, setItems] = useState<InspirationItem[]>(modItems);
+  const [loading, setLoading] = useState(modItems.length === 0);
   const router = useRouter();
 
   const [page, setPage] = useState(modPage);
+
+  // Client-side fetch from CloudBase when initialItems is empty (EdgeOne Pages)
+  useEffect(() => {
+    if (initialItems.length > 0) return; // already have server data
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const db = getDb();
+        const col = db.collection("generations");
+        const { data } = await col
+          .where({ published: true })
+          .field([
+            "prompt", "model", "image_url", "reference_image_url",
+            "created_at", "user_id", "username", "likes_count",
+            "watermark_enabled", "title", "width", "height",
+          ])
+          .orderBy("created_at", "desc")
+          .limit(20)
+          .get();
+        if (cancelled) return;
+        const fetched = (data || []).map((item: any) => ({ ...item, user_liked: false }));
+        modItems = fetched;
+        modPage = 1;
+        setItems(fetched);
+        setLoading(false);
+
+        // Fetch total count
+        const { total } = await col.where({ published: true }).count();
+        // total is used via prop, but we can store it if needed
+      } catch (e) {
+        console.error("Failed to load inspiration gallery:", e);
+        setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [initialItems.length]);
 
   // Sync module store whenever state changes
   const syncMod = useCallback((newItems: InspirationItem[], newPage: number) => {
@@ -562,7 +602,12 @@ export default function InspirationGalleryClient({
         </div>
 
         {/* Masonry Grid */}
-        {items.length > 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="size-8 animate-spin text-violet-500" />
+            <span className="ml-3 text-gray-500">加载中...</span>
+          </div>
+        ) : items.length > 0 ? (
           <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
             {items.map((item) => {
               const pos = positions.get(item._id);

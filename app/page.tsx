@@ -1,73 +1,15 @@
-import { decodeUserCookie } from "@/lib/utils";
-import { cookies } from "next/headers";
-import { serverDb } from "@/lib/cloudbase/server";
 import InspirationGalleryClient from "@/components/InspirationGalleryClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  // Optional: read user cookie for like status
-  let currentUserId: string | undefined;
-  const cookieStore = await cookies();
-  const userPayload = cookieStore.get("tcb_user")?.value;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      currentUserId = user.uid;
-    } catch {}
-  }
-
-  // Fetch first page of published generations and total count in parallel
-  const [{ data }, { total }] = await Promise.all([
-    serverDb
-      .collection("generations")
-      .where({ published: true })
-      .field([
-        "prompt", "model", "image_url", "reference_image_url",
-        "created_at", "user_id", "username", "likes_count",
-        "watermark_enabled", "title", "width", "height",
-      ])
-      .orderBy("created_at", "desc")
-      .limit(20)
-      .get(),
-    serverDb
-      .collection("generations")
-      .where({ published: true })
-      .count(),
-  ]);
-
-  let items = (data || []).map((item: any) => ({
-    ...item,
-    user_liked: false,
-  }));
-
-  // Check which items the current user has liked
-  if (currentUserId && items.length > 0) {
-    try {
-      const generationIds = items.map((item: any) => item._id);
-      const { data: likes } = await serverDb
-        .collection("gallery_likes")
-        .where({
-          user_id: currentUserId,
-          generation_id: { $in: generationIds },
-        })
-        .get();
-
-      const likedSet = new Set((likes || []).map((l: any) => l.generation_id));
-      items = items.map((item: any) => ({
-        ...item,
-        user_liked: likedSet.has(item._id),
-      }));
-    } catch {
-      // gallery_likes collection may not exist yet
-    }
-  }
-
+  // Pass empty initial data — client component fetches from CloudBase directly
+  // This avoids serverless function timeout on EdgeOne Pages
   return (
     <InspirationGalleryClient
-      initialItems={items}
-      total={total ?? 0}
-      currentUserId={currentUserId}
+      initialItems={[]}
+      total={0}
+      currentUserId={undefined}
     />
   );
 }
