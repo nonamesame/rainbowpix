@@ -125,7 +125,12 @@
       "WebFetch(domain:pages.cloud.tencent.com)",
       "WebFetch(domain:cloud.tencent.com)",
       "WebFetch(domain:edgeone.ai)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "WebFetch(domain:rainbowpix-259619-9-1434114066.sh.run.tcloudbase.com)",
+      "Bash(grep -v \"console\\\\|warn\\\\|error\\\\|log\\\\|print\\\\|throw\\\\|Error\\\\|comment\\\\|//\")",
+      "Bash(grep -oP '.{0,50}NEXT_PUBLIC_TCB_ENV_ID.{0,50}')",
+      "Bash(grep -oE '.{0,80}NEXT_PUBLIC_TCB_ENV_ID.{0,80}')",
+      "Bash(git check-ignore *)"
     ]
   }
 }

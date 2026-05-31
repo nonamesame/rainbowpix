@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-12 text-center">
-          <Link href="/" className="text-sm text-[#7c3aed] hover:underline">
+          <Link href="/" className="text-sm text-brand hover:underline">
             ← 返回首页
           </Link>
         </div>

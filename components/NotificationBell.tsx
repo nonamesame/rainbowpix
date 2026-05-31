@@ -38,7 +38,7 @@ export default function NotificationBell({
   return (
     <>
       <button
-        className="relative flex size-9 items-center justify-center text-gray-400 transition-colors hover:text-violet-600"
+        className="relative flex size-9 items-center justify-center text-gray-400 transition-colors hover:text-brand"
         onClick={handleClick}
       >
         <Bell className="size-5" />

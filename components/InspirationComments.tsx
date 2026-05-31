@@ -164,7 +164,7 @@ export default function InspirationComments({
                   className="size-8 shrink-0 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-medium text-purple-700">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand-dark">
                   {getInitial(comment.username)}
                 </div>
               )}
@@ -224,7 +224,7 @@ export default function InspirationComments({
                 fetchComments(nextPage, true);
               }}
               disabled={loadingMore}
-              className="w-full py-2 text-center text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50"
+              className="w-full py-2 text-center text-xs text-brand hover:text-brand-dark disabled:opacity-50"
             >
               {loadingMore ? (
                 <Loader2 className="mx-auto size-4 animate-spin" />
@@ -246,7 +246,7 @@ export default function InspirationComments({
           }
           disabled={!currentUserId || submitting}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 outline-none transition-colors focus:border-purple-300 focus:bg-white disabled:opacity-50"
+          className="flex-1 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 outline-none transition-colors focus:border-brand-light focus:bg-white disabled:opacity-50"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -258,7 +258,7 @@ export default function InspirationComments({
           type="button"
           onClick={handleSubmit}
           disabled={!content.trim() || submitting || !currentUserId}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white transition-colors hover:bg-purple-700 disabled:opacity-40"
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand text-white transition-colors hover:bg-brand-dark disabled:opacity-40"
         >
           {submitting ? (
             <Loader2 className="size-4 animate-spin" />

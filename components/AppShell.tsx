@@ -10,6 +10,11 @@ import ScrollToTop from "@/components/ScrollToTop";
 import { useNotifications } from "@/hooks/useNotifications";
 import AnnouncementModal from "@/components/AnnouncementModal";
 
+// 模块级 profile 请求去重：5 分钟内不重复请求
+const PROFILE_CACHE_TTL = 5 * 60 * 1000;
+let lastProfileFetchTime = 0;
+let lastProfileFetchUid = "";
+
 interface Announcement {
   _id: string;
   title: string;
@@ -56,8 +61,12 @@ export default function AppShell({ children }: Props) {
           }
           return userData;
         });
-        // Fetch fresh data from API
-        if (!skipApi) fetch("/api/profile")
+        // Fetch fresh data from API (去重：同一用户 5 分钟内不重复请求)
+        const now = Date.now();
+        if (!skipApi && !(userData.uid === lastProfileFetchUid && now - lastProfileFetchTime < PROFILE_CACHE_TTL)) {
+          lastProfileFetchUid = userData.uid;
+          lastProfileFetchTime = now;
+          fetch("/api/profile")
           .then((r) => r.json())
           .then((data) => {
             if (data.username || data.avatar_url) {
@@ -76,6 +85,9 @@ export default function AppShell({ children }: Props) {
           .catch(() => {
             if (waitForApi) setAuthChecked(true);
           });
+        } else {
+          if (waitForApi) setAuthChecked(true);
+        }
       } else {
         if (!preserveExisting) setUser(null);
         if (waitForApi) setAuthChecked(true);

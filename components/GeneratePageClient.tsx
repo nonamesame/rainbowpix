@@ -503,7 +503,7 @@ export default function GeneratePageClient({
                     onDrop={handleReferenceDrop}
                     onDragOver={handleDragOver}
                     onDragEnter={handleDragOver}
-                    className="flex size-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 transition-colors hover:border-violet-300 hover:bg-violet-50"
+                    className="flex size-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 transition-colors hover:border-brand-light hover:bg-brand-light"
                   >
                     <ImagePlus className="size-6 text-gray-400" />
                     <span className="mt-1 text-[10px] text-gray-400">参考图</span>
@@ -527,7 +527,7 @@ export default function GeneratePageClient({
 
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
             <Select value={model} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-8 w-auto rounded-full border-violet-200 bg-violet-50/50 px-3 text-xs font-medium text-violet-700 hover:bg-violet-50 hover:text-violet-800">
+              <SelectTrigger className="h-8 w-auto rounded-full border-brand-light bg-brand-light/50 px-3 text-xs font-medium text-brand-dark hover:bg-brand-light hover:text-brand-dark">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 p-1 [&_[data-slot=select-item]]:pr-1.5 [&_[class*=absolute][class*=right-2]]:hidden">
@@ -548,7 +548,7 @@ export default function GeneratePageClient({
                   disabled={!supportedRatios.includes(ratio)}
                   className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
                     size === ratio
-                      ? "bg-violet-100 text-violet-700 shadow-sm"
+                      ? "bg-brand-light text-brand-dark shadow-sm"
                       : supportedRatios.includes(ratio)
                         ? "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                         : "cursor-not-allowed text-gray-300"
@@ -565,7 +565,7 @@ export default function GeneratePageClient({
               onClick={handleGenerate}
               disabled={loading || !prompt.trim()}
               size="sm"
-              className="h-8 rounded-full bg-violet-600 px-4 text-xs font-medium text-white shadow-sm hover:bg-violet-700"
+              className="h-8 rounded-full bg-brand px-4 text-xs font-medium text-white shadow-sm hover:bg-brand-dark"
             >
               {loading ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
               {loading ? "生成中" : "生成"}
@@ -674,7 +674,7 @@ export default function GeneratePageClient({
                 value={publishTitle}
                 onChange={(e) => setPublishTitle(e.target.value)}
                 placeholder={prompt.trim().slice(0, 30) || "输入标题"}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
               />
             </div>
           </div>

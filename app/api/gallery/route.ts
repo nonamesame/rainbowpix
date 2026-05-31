@@ -2,6 +2,19 @@ import { decodeUserCookie } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
+// 缓存每个用户的 gallery count 查询结果（30 秒 TTL）
+const GALLERY_COUNT_CACHE_TTL = 30_000;
+const galleryCountCache = new Map<string, { total: number; expires: number }>();
+
+function getCachedGalleryCount(userId: string): number | null {
+  const cached = galleryCountCache.get(userId);
+  if (cached && cached.expires > Date.now()) {
+    return cached.total;
+  }
+  if (cached) galleryCountCache.delete(userId);
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const userPayload = request.cookies.get("tcb_user")?.value;
   if (!userPayload) {
@@ -35,16 +48,33 @@ export async function GET(request: NextRequest) {
     .limit(pageSize)
     .get();
 
-  const { total } = await serverDb
-    .collection("generations")
-    .where({ user_id: user.uid })
-    .count();
+  // 优先使用缓存的 count（仅无筛选条件时缓存）
+  let total: number;
+  if (!promptFilter && !sinceParam) {
+    const cached = getCachedGalleryCount(user.uid);
+    if (cached !== null) {
+      total = cached;
+    } else {
+      const countResult = await serverDb
+        .collection("generations")
+        .where({ user_id: user.uid })
+        .count();
+      total = countResult.total ?? 0;
+      galleryCountCache.set(user.uid, { total, expires: Date.now() + GALLERY_COUNT_CACHE_TTL });
+    }
+  } else {
+    const countResult = await serverDb
+      .collection("generations")
+      .where({ user_id: user.uid })
+      .count();
+    total = countResult.total ?? 0;
+  }
 
   return Response.json({
     items: data || [],
-    total: total ?? 0,
+    total,
     page,
     pageSize,
-    hasMore: from + pageSize < (total ?? 0),
+    hasMore: from + pageSize < total,
   });
 }

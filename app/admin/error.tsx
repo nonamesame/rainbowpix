@@ -14,7 +14,7 @@ export default function AdminError({
         <p className="mb-4 text-sm text-gray-500">{error.message}</p>
         <button
           onClick={reset}
-          className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700"
+          className="rounded-lg bg-brand px-4 py-2 text-sm text-white hover:bg-brand-dark"
         >
           重试
         </button>

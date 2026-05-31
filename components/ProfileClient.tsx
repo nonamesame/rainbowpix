@@ -581,7 +581,7 @@ export default function ProfileClient({
           {displayAvatar ? (
             <img src={displayAvatar} alt={displayName} className="size-16 rounded-full object-cover md:size-20" />
           ) : (
-            <div className="flex size-16 items-center justify-center rounded-full bg-purple-100 text-2xl font-bold text-[#7c3aed] md:size-20 md:text-3xl">
+            <div className="flex size-16 items-center justify-center rounded-full bg-brand-light text-2xl font-bold text-brand md:size-20 md:text-3xl">
               {avatarChar}
             </div>
           )}
@@ -606,7 +606,7 @@ export default function ProfileClient({
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                 activeTab === tab.key
-                  ? "bg-white text-[#7c3aed] shadow-sm"
+                  ? "bg-white text-brand shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -652,7 +652,7 @@ export default function ProfileClient({
                           }}
                         />
                         {item.published && (
-                          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-purple-500/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-brand/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                             <Share2 className="size-2.5" />
                             已发布
                           </span>
@@ -662,7 +662,7 @@ export default function ProfileClient({
                         {truncate(item.title || item.prompt, 20)}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                        <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium text-brand-dark">
                           {getModelName(item.model)}
                         </span>
                       </div>
@@ -718,7 +718,7 @@ export default function ProfileClient({
                         {truncate(item.title || item.prompt, 20)}
                       </p>
                       <div className="mt-1 flex items-center justify-between">
-                        <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                        <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium text-brand-dark">
                           {getModelName(item.model)}
                         </span>
                         <button
@@ -790,7 +790,7 @@ export default function ProfileClient({
                         {truncate(item.title || item.prompt, 20)}
                       </p>
                       <div className="mt-1 flex items-center justify-between">
-                        <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                        <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium text-brand-dark">
                           {getModelName(item.model)}
                         </span>
                         <span className="flex items-center gap-0.5 text-[10px] text-red-500">
@@ -821,7 +821,7 @@ export default function ProfileClient({
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">头像</span>
                 <div className="flex gap-2">
-                  <label className="cursor-pointer text-sm text-[#7c3aed] hover:underline">
+                  <label className="cursor-pointer text-sm text-brand hover:underline">
                     <Pencil className="inline size-3.5 mr-1" />更换
                     <input
                       type="file"
@@ -842,7 +842,7 @@ export default function ProfileClient({
                 {displayAvatar ? (
                   <img src={displayAvatar} alt="头像" className="size-16 rounded-full object-cover" />
                 ) : (
-                  <div className="flex size-16 items-center justify-center rounded-full bg-purple-100 text-2xl font-bold text-[#7c3aed]">
+                  <div className="flex size-16 items-center justify-center rounded-full bg-brand-light text-2xl font-bold text-brand">
                     {avatarChar}
                   </div>
                 )}
@@ -850,7 +850,7 @@ export default function ProfileClient({
                   <p>支持 JPG、PNG、GIF、WebP</p>
                   <p>大小不超过 2MB</p>
                 </div>
-                {uploadingAvatar && <Loader2 className="size-5 animate-spin text-[#7c3aed]" />}
+                {uploadingAvatar && <Loader2 className="size-5 animate-spin text-brand" />}
               </div>
             </div>
 
@@ -859,7 +859,7 @@ export default function ProfileClient({
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">用户名</span>
                 {!editingUsername ? (
-                  <button onClick={() => { setUsernameDraft(profile.username); setEditingUsername(true); }} className="text-sm text-[#7c3aed] hover:underline">
+                  <button onClick={() => { setUsernameDraft(profile.username); setEditingUsername(true); }} className="text-sm text-brand hover:underline">
                     <Pencil className="inline size-3.5 mr-1" />修改
                   </button>
                 ) : (
@@ -878,7 +878,7 @@ export default function ProfileClient({
                   type="text"
                   value={usernameDraft}
                   onChange={(e) => setUsernameDraft(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
                   placeholder="2-20位，支持中英文、数字、下划线、横杠"
                 />
               ) : (
@@ -891,7 +891,7 @@ export default function ProfileClient({
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">个人简介</span>
                 {!editingBio ? (
-                  <button onClick={() => { setBioDraft(profile.bio); setEditingBio(true); }} className="text-sm text-[#7c3aed] hover:underline">
+                  <button onClick={() => { setBioDraft(profile.bio); setEditingBio(true); }} className="text-sm text-brand hover:underline">
                     <Pencil className="inline size-3.5 mr-1" />修改
                   </button>
                 ) : (
@@ -911,7 +911,7 @@ export default function ProfileClient({
                   onChange={(e) => setBioDraft(e.target.value)}
                   rows={3}
                   maxLength={200}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 resize-none"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light resize-none"
                   placeholder="写点什么介绍下自己..."
                 />
               ) : (
@@ -923,8 +923,8 @@ export default function ProfileClient({
             <div className="rounded-xl bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-purple-50">
-                    <Heart className="size-4 text-[#7c3aed]" />
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-brand-light">
+                    <Heart className="size-4 text-brand" />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-700">公开点赞作品</span>
@@ -937,8 +937,8 @@ export default function ProfileClient({
                   aria-checked={profile.show_liked ?? false}
                   disabled={savingShowLiked}
                   onClick={() => saveShowLiked(!(profile.show_liked ?? false))}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 ${
-                    profile.show_liked ? "bg-[#7c3aed]" : "bg-gray-200"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
+                    profile.show_liked ? "bg-brand" : "bg-gray-200"
                   } ${savingShowLiked ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <span
@@ -954,7 +954,7 @@ export default function ProfileClient({
             <div className="rounded-xl bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">登录密码</span>
-                <button onClick={() => setShowPasswordDialog(true)} className="text-sm text-[#7c3aed] hover:underline">
+                <button onClick={() => setShowPasswordDialog(true)} className="text-sm text-brand hover:underline">
                   <Shield className="inline size-3.5 mr-1" />修改密码
                 </button>
               </div>
@@ -1038,7 +1038,7 @@ export default function ProfileClient({
                     <button
                       type="button"
                       onClick={() => setShowRefImage(true)}
-                      className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                      className="inline-flex items-center gap-1 rounded-md bg-brand-light px-2 py-1 text-xs font-medium text-brand-dark transition-colors hover:bg-brand-light"
                     >
                       <Eye className="size-3.5" />
                       查看参考图
@@ -1132,7 +1132,7 @@ export default function ProfileClient({
               value={publishTitle}
               onChange={(e) => setPublishTitle(e.target.value)}
               placeholder={selected ? truncate(selected.prompt, 30) : "输入标题"}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
             />
           </div>
           <DialogFooter>
@@ -1165,7 +1165,7 @@ export default function ProfileClient({
                 type="password"
                 value={oldPassword}
                 onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
               />
             </div>
             <div>
@@ -1174,7 +1174,7 @@ export default function ProfileClient({
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
                 placeholder="8-64位，需含字母和数字"
               />
             </div>
@@ -1184,7 +1184,7 @@ export default function ProfileClient({
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
               />
             </div>
           </div>
@@ -1238,7 +1238,7 @@ export default function ProfileClient({
               <ZoomOut className="size-4 shrink-0 text-gray-400" />
               <div className="relative h-1.5 flex-1 rounded-full bg-gray-200">
                 <div
-                  className="absolute left-0 top-0 h-full rounded-full bg-[#7c3aed] transition-all"
+                  className="absolute left-0 top-0 h-full rounded-full bg-brand transition-all"
                   style={{ width: `${((zoom - 1) / 2) * 100}%` }}
                 />
                 <input
@@ -1251,7 +1251,7 @@ export default function ProfileClient({
                   className="absolute inset-0 w-full cursor-pointer opacity-0"
                 />
                 <div
-                  className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md ring-2 ring-[#7c3aed] pointer-events-none transition-all"
+                  className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md ring-2 ring-brand pointer-events-none transition-all"
                   style={{ left: `${((zoom - 1) / 2) * 100}%` }}
                 />
               </div>
@@ -1268,7 +1268,7 @@ export default function ProfileClient({
             <button
               onClick={handleCropConfirm}
               disabled={uploadingAvatar}
-              className="flex-1 rounded-xl bg-[#7c3aed] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6d28d9] active:bg-[#5b21b6] disabled:opacity-50"
+              className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark active:bg-brand-dark disabled:opacity-50"
             >
               {uploadingAvatar ? <Loader2 className="mr-1.5 inline size-4 animate-spin" /> : <Check className="mr-1.5 inline size-4" />}
               确认

@@ -63,7 +63,7 @@ export default function NavigationProgress() {
   return (
     <div className="fixed inset-x-0 top-0 z-[9999] h-0.5">
       <div
-        className="h-full bg-violet-500 transition-all duration-300 ease-out"
+        className="h-full bg-brand transition-all duration-300 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>

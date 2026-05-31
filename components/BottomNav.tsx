@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sparkles, Palette, ImageIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
+import ThemeSwitcher from "./ThemeSwitcher";
 
 interface Props {
   user: TcbUser | null;
@@ -29,6 +30,7 @@ export default function BottomNav({ user, authChecked, unreadCount }: Props) {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-gray-100 bg-white/95 backdrop-blur-md px-2 py-1 safe-area-bottom">
+      <ThemeSwitcher />
       {allItems.map((item) => {
         const Icon = item.icon;
         const isMyTab = item.label === "我的";
@@ -61,7 +63,7 @@ export default function BottomNav({ user, authChecked, unreadCount }: Props) {
             className={cn(
               "relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors min-w-[56px]",
               isActive
-                ? "text-violet-600"
+                ? "text-brand"
                 : "text-gray-400 hover:text-gray-600"
             )}
           >

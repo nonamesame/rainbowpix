@@ -55,7 +55,7 @@ export default function ComplaintPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                 />
               </div>
               <div>
@@ -66,7 +66,7 @@ export default function ComplaintPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                 />
               </div>
               <div>
@@ -77,7 +77,7 @@ export default function ComplaintPage() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   required
-                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                  className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                 />
               </div>
               <div>
@@ -88,13 +88,13 @@ export default function ComplaintPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   required
                   rows={5}
-                  className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm focus:border-[#7c3aed] focus:ring-[#7c3aed]/30 focus:outline-none focus:ring-2 resize-none"
+                  className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm focus:border-brand focus:ring-brand/30 focus:outline-none focus:ring-2 resize-none"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={loading}
-                className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                className="h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
               >
                 {loading ? "提交中..." : "提交投诉"}
               </Button>
@@ -103,7 +103,7 @@ export default function ComplaintPage() {
         </Card>
 
         <div className="mt-8 text-center">
-          <Link href="/" className="text-sm text-[#7c3aed] hover:underline">
+          <Link href="/" className="text-sm text-brand hover:underline">
             ← 返回首页
           </Link>
         </div>

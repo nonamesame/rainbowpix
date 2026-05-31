@@ -68,8 +68,8 @@ export default function AdminPage() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-purple-100">
-              <Shield className="size-8 text-purple-600" />
+            <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-brand-light">
+              <Shield className="size-8 text-brand" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">管理后台</h1>
             <p className="mt-2 text-sm text-gray-500">请输入管理员密钥以继续</p>
@@ -92,7 +92,7 @@ export default function AdminPage() {
             <Button
               onClick={handleVerify}
               disabled={verifying}
-              className="w-full bg-purple-600 hover:bg-purple-700"
+              className="w-full bg-brand hover:bg-brand-dark"
             >
               {verifying ? "验证中..." : "进入后台"}
             </Button>

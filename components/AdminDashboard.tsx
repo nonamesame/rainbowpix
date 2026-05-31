@@ -390,7 +390,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">总用户数</CardTitle>
-              <Users className="size-4 text-purple-500" />
+              <Users className="size-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats?.totalUsers ?? 0}</div>
@@ -400,7 +400,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">总生成数</CardTitle>
-              <Image className="size-4 text-purple-500" />
+              <Image className="size-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats?.totalGenerations ?? 0}</div>
@@ -464,7 +464,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingImage}
-                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-brand hover:text-brand-dark disabled:opacity-50"
                   >
                     <Upload className="size-3" />
                     {uploadingImage ? "上传中..." : "插入图片"}
@@ -476,7 +476,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                   onChange={(e) => setAnnouncementBody(e.target.value)}
                   placeholder={"输入公告内容\n\n点击上方「插入图片」按钮添加图片"}
                   rows={6}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
               <p className="text-xs text-gray-500">发布公告后，所有用户登录时会在弹窗中看到此公告</p>
@@ -513,7 +513,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                   onChange={(e) => setBody(e.target.value)}
                   placeholder="输入通知内容"
                   rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
               <div>
@@ -521,7 +521,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as typeof type)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 >
                   <option value="system">系统通知</option>
                   <option value="like">点赞通知</option>
@@ -541,7 +541,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
               <Button
                 onClick={handleSendNotification}
                 disabled={sending}
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full bg-brand hover:bg-brand-dark"
               >
                 {sending ? "发送中..." : "发送通知"}
               </Button>
@@ -569,7 +569,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                       <div className="mb-1 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{n.title}</span>
-                          <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
+                          <span className="rounded-full bg-brand-light px-2 py-0.5 text-xs text-brand-dark">
                             {n.type}
                           </span>
                         </div>
@@ -584,7 +584,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                       <p className="mb-2 text-sm text-gray-600">{n.body}</p>
                       <div className="flex items-center justify-between text-xs text-gray-400">
                         <span>{new Date(n.created_at).toLocaleString("zh-CN")}</span>
-                        {n.link && <span className="text-purple-500">{n.link}</span>}
+                        {n.link && <span className="text-brand">{n.link}</span>}
                       </div>
                     </div>
                   ))
@@ -619,7 +619,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                 />
                 <div
                   onClick={() => inspirationFileInputRef.current?.click()}
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:border-purple-400"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:border-brand"
                 >
                   {inspirationPreview ? (
                     <img
@@ -653,7 +653,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                   onChange={(e) => setInspirationPrompt(e.target.value)}
                   placeholder="描述这张图片的提示词"
                   rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
               <div>
@@ -661,7 +661,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                 <select
                   value={inspirationModel}
                   onChange={(e) => setInspirationModel(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 >
                   <option value="jimeng-4.0">即梦 4.0</option>
                   <option value="jimeng-3.0">即梦 3.0</option>
@@ -682,7 +682,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
               <Button
                 onClick={handlePublishInspiration}
                 disabled={publishingInspiration || !inspirationFile || !inspirationPrompt.trim()}
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full bg-brand hover:bg-brand-dark"
               >
                 {publishingInspiration ? "发布中..." : "发布到灵感大厅"}
               </Button>
@@ -741,15 +741,15 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                                   if (e.key === "Enter") handleUpdateLikes(item._id, parseInt(editingLikesValue, 10) || 0);
                                   if (e.key === "Escape") setEditingLikesId(null);
                                 }}
-                                className="w-16 rounded border border-purple-300 px-1 py-0.5 text-xs focus:border-purple-500 focus:outline-none"
+                                className="w-16 rounded border border-brand-light px-1 py-0.5 text-xs focus:border-brand focus:outline-none"
                                 autoFocus
                               />
-                              <button onClick={() => handleUpdateLikes(item._id, parseInt(editingLikesValue, 10) || 0)} className="text-purple-600 hover:text-purple-800">确定</button>
+                              <button onClick={() => handleUpdateLikes(item._id, parseInt(editingLikesValue, 10) || 0)} className="text-brand hover:text-brand-dark">确定</button>
                             </span>
                           ) : (
                             <button
                               onClick={() => { setEditingLikesId(item._id); setEditingLikesValue(String(item.likes_count || 0)); }}
-                              className="cursor-pointer rounded px-1 py-0.5 hover:bg-purple-50 hover:text-purple-600"
+                              className="cursor-pointer rounded px-1 py-0.5 hover:bg-brand-light hover:text-brand"
                               title="修改点赞数"
                             >
                               {item.likes_count || 0} 赞
