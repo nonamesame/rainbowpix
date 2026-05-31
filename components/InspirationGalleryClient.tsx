@@ -8,7 +8,6 @@ import toast from "react-hot-toast";
 import { Palette, Heart, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toProxyUrl } from "@/lib/image-url";
-import { getDb, getAuth } from "@/lib/cloudbase/client";
 import type { InspirationItem } from "@/lib/inspiration";
 
 interface Props {
@@ -91,35 +90,23 @@ export default function InspirationGalleryClient({
 
   const [page, setPage] = useState(modPage);
 
-  // Client-side fetch from CloudBase when initialItems is empty (EdgeOne Pages)
+  // 当 initialItems 为空时（EdgeOne Pages），通过 API 获取数据
   useEffect(() => {
     if (initialItems.length > 0) return; // already have server data
     let cancelled = false;
 
     (async () => {
       try {
-        const db = getDb();
-        const col = db.collection("generations");
-        const { data } = await col
-          .where({ published: true })
-          .field([
-            "prompt", "model", "image_url", "reference_image_url",
-            "created_at", "user_id", "username", "likes_count",
-            "watermark_enabled", "title", "width", "height",
-          ])
-          .orderBy("created_at", "desc")
-          .limit(20)
-          .get();
-        if (cancelled) return;
-        const fetched = (data || []).map((item: any) => ({ ...item, user_liked: false }));
-        modItems = fetched;
-        modPage = 1;
-        setItems(fetched);
+        const res = await fetch("/api/inspiration?page=1");
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (data.items?.length) {
+          modItems = data.items;
+          modPage = 1;
+          setItems(data.items);
+          if (typeof data.total === "number") setTotal(data.total);
+        }
         setLoading(false);
-
-        // Fetch total count
-        const { total } = await col.where({ published: true }).count();
-        // total is used via prop, but we can store it if needed
       } catch (e) {
         console.error("Failed to load inspiration gallery:", e);
         setLoading(false);
@@ -330,7 +317,7 @@ export default function InspirationGalleryClient({
   useEffect(() => {
     let pending = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const POLL_MS = 10_000;
+    const POLL_MS = 60_000;
 
     async function refresh() {
       if (pending || document.visibilityState !== "visible") return;
@@ -594,7 +581,7 @@ export default function InspirationGalleryClient({
             </p>
           </div>
           <Link href="/generate">
-            <Button className="bg-violet-600 hover:bg-violet-700">
+            <Button className="bg-brand hover:bg-brand-dark">
               <Palette className="mr-1.5 size-4" />
               AI绘画
             </Button>
@@ -604,7 +591,7 @@ export default function InspirationGalleryClient({
         {/* Masonry Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="size-8 animate-spin text-violet-500" />
+            <Loader2 className="size-8 animate-spin text-brand" />
             <span className="ml-3 text-gray-500">加载中...</span>
           </div>
         ) : items.length > 0 ? (

@@ -6,7 +6,7 @@ export default function NotFound() {
         <p className="mb-4 text-lg text-gray-900">页面未找到</p>
         <a
           href="/"
-          className="inline-block rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700"
+          className="inline-block rounded-lg bg-brand px-4 py-2 text-sm text-white hover:bg-brand-dark"
         >
           返回首页
         </a>

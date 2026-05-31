@@ -160,7 +160,7 @@ export default function ForgotPasswordPage() {
                     onClick={() => { setMode("phone"); setIdentifier(""); }}
                     className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
                       mode === "phone"
-                        ? "bg-white text-[#7c3aed] shadow-sm"
+                        ? "bg-white text-brand shadow-sm"
                         : "text-gray-500"
                     }`}
                   >
@@ -171,7 +171,7 @@ export default function ForgotPasswordPage() {
                     onClick={() => { setMode("email"); setIdentifier(""); }}
                     className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
                       mode === "email"
-                        ? "bg-white text-[#7c3aed] shadow-sm"
+                        ? "bg-white text-brand shadow-sm"
                         : "text-gray-500"
                     }`}
                   >
@@ -185,14 +185,14 @@ export default function ForgotPasswordPage() {
                     placeholder={mode === "phone" ? "请输入手机号" : "请输入邮箱"}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
                   <Button
                     type="button"
                     onClick={handleSendCode}
                     disabled={loading || countdown > 0}
                     variant="outline"
-                    className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                    className="h-11 shrink-0 rounded-xl border-brand px-4 text-brand hover:bg-brand/5 font-medium"
                   >
                     {countdown > 0 ? `${countdown}s` : "发送验证码"}
                   </Button>
@@ -201,7 +201,7 @@ export default function ForgotPasswordPage() {
                 <p className="text-center text-sm text-gray-500">
                   <Link
                     href="/login"
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     返回登录
                   </Link>
@@ -222,27 +222,27 @@ export default function ForgotPasswordPage() {
                     placeholder="请输入验证码"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
                   <Input
                     type="password"
                     placeholder="8-64位，需含字母和数字"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
                   <Input
                     type="password"
                     placeholder="确认新密码"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
 
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                    className="h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
                   >
                     {loading ? "处理中..." : "重置密码"}
                   </Button>
@@ -252,7 +252,7 @@ export default function ForgotPasswordPage() {
                   <button
                     type="button"
                     onClick={() => { setStep("identify"); setVerificationCode(""); setNewPassword(""); setConfirmPassword(""); }}
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     返回上一步
                   </button>
@@ -265,13 +265,13 @@ export default function ForgotPasswordPage() {
 
       <footer className="border-t bg-white/80 py-4">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-4 text-sm text-gray-500">
-          <Link href="/terms" className="hover:text-[#7c3aed]">
+          <Link href="/terms" className="hover:text-brand">
             用户服务协议
           </Link>
-          <Link href="/privacy" className="hover:text-[#7c3aed]">
+          <Link href="/privacy" className="hover:text-brand">
             隐私政策
           </Link>
-          <Link href="/complaint" className="hover:text-[#7c3aed]">
+          <Link href="/complaint" className="hover:text-brand">
             侵权投诉
           </Link>
         </div>

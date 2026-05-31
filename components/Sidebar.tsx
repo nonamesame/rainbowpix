@@ -11,6 +11,7 @@ import { TcbUser } from "@/lib/cloudbase/types";
 import { getAuth } from "@/lib/cloudbase/client";
 import NotificationBell from "./NotificationBell";
 import AnnouncementModal from "./AnnouncementModal";
+import ThemeSwitcher from "./ThemeSwitcher";
 import type { Notification } from "@/lib/notifications";
 
 interface Props {
@@ -98,12 +99,12 @@ export default function Sidebar({
               className={cn(
                 "relative flex w-12 flex-col items-center gap-1 rounded-lg py-2.5 text-[10px] font-medium transition-colors",
                 isActive
-                  ? "text-violet-600"
+                  ? "text-brand"
                   : "text-gray-400 hover:text-gray-700"
               )}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-violet-600" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand" />
               )}
               <Icon className="size-5" />
               <span>{item.label}</span>
@@ -114,11 +115,12 @@ export default function Sidebar({
 
       {/* Bottom Section */}
       <div className="flex flex-col items-center gap-3">
+        <ThemeSwitcher />
         {!authChecked ? null : user ? (
           <>
             <button
               onClick={fetchAnnouncements}
-              className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-violet-600"
+              className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-brand"
               title="查看公告"
             >
               <Megaphone className="size-5" />
@@ -145,7 +147,7 @@ export default function Sidebar({
                   className="size-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex size-8 items-center justify-center rounded-full bg-violet-100 text-xs font-medium text-violet-600">
+                <div className="flex size-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
                   {user.username?.charAt(0).toUpperCase() ||
                     user.email?.charAt(0).toUpperCase() ||
                     user.phone?.charAt(0) ||
@@ -164,9 +166,9 @@ export default function Sidebar({
         ) : (
           <Link
             href="/login"
-            className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-violet-600"
+            className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-brand"
           >
-            <div className="flex size-8 items-center justify-center rounded-full bg-violet-100 text-xs font-medium text-violet-600">
+            <div className="flex size-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
               登
             </div>
             <span className="text-[10px]">登录</span>

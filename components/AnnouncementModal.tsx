@@ -31,7 +31,7 @@ function LoadingImage({
     <div className="relative w-full">
       {!loaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-          <Loader2 className="size-6 animate-spin text-purple-400" />
+          <Loader2 className="size-6 animate-spin text-brand" />
         </div>
       )}
       <img
@@ -124,7 +124,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         <button
           onClick={goNewer}
           disabled={!hasNewer}
-          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-brand disabled:pointer-events-none disabled:opacity-30"
         >
           <ChevronLeft className="size-6" />
         </button>
@@ -159,7 +159,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
           {!hasImage && (
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-200">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-indigo-600 shadow-lg shadow-brand-light">
                   <Megaphone className="size-4.5 text-white" />
                 </div>
                 <div>
@@ -182,7 +182,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
 
           {hasImage && (
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xs font-semibold tracking-wider text-purple-600 uppercase">
+              <h2 className="text-xs font-semibold tracking-wider text-brand uppercase">
                 系统公告
               </h2>
               <div className="flex items-center gap-2">
@@ -228,7 +228,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
                 <span
                   key={i}
                   className={`size-1.5 rounded-full transition-colors ${
-                    i === index ? "bg-purple-500" : "bg-gray-300"
+                    i === index ? "bg-brand" : "bg-gray-300"
                   }`}
                 />
               ))}
@@ -236,7 +236,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
           )}
           <Button
             onClick={hasOlder ? goOlder : onClose}
-            className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-5 text-sm font-semibold shadow-lg shadow-purple-200/50 transition-all hover:shadow-xl hover:shadow-purple-200/60"
+            className="w-full rounded-xl bg-gradient-to-r from-brand to-indigo-600 py-5 text-sm font-semibold shadow-lg shadow-brand-light/50 transition-all hover:shadow-xl hover:shadow-brand-light/60"
           >
             {hasOlder ? "下一条" : "我知道了"}
           </Button>
@@ -247,7 +247,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         <button
           onClick={goOlder}
           disabled={!hasOlder}
-          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-purple-600 disabled:pointer-events-none disabled:opacity-30"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all hover:bg-white hover:text-brand disabled:pointer-events-none disabled:opacity-30"
         >
           <ChevronRight className="size-6" />
         </button>

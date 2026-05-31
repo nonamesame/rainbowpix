@@ -301,7 +301,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                   }}
                 />
                 {item.published && (
-                  <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-purple-500/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                  <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-brand/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                     <Share2 className="size-2.5" />
                     已发布
                   </span>
@@ -321,7 +321,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                 {truncate(item.prompt, 20)}
               </p>
               <div className="mt-1 flex items-center gap-1.5">
-                <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium text-brand-dark">
                   {getModelName(item.model)}
                 </span>
               </div>
@@ -398,7 +398,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                     <button
                       type="button"
                       onClick={() => setShowRefImage(true)}
-                      className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                      className="inline-flex items-center gap-1 rounded-md bg-brand-light px-2 py-1 text-xs font-medium text-brand-dark transition-colors hover:bg-brand-light"
                     >
                       <Eye className="size-3.5" />
                       查看参考图
@@ -492,7 +492,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                 value={publishTitle}
                 onChange={(e) => setPublishTitle(e.target.value)}
                 placeholder={selected ? truncate(selected.prompt, 30) : "输入标题"}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
               />
             </div>
             {/* 暂时隐藏水印选项
@@ -501,7 +501,7 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
                 type="checkbox"
                 checked={watermarkEnabled}
                 onChange={(e) => setWatermarkEnabled(e.target.checked)}
-                className="size-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                className="size-4 rounded border-gray-300 text-brand focus:ring-brand"
               />
               添加水印保护
             </label>

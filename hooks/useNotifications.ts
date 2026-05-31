@@ -93,7 +93,7 @@ export function useNotifications(uid: string | null) {
   useEffect(() => {
     if (!uid) return;
     fetchCount();
-    fetchNotifications();
+    // 不在初始化时拉取完整通知列表，仅在用户点击铃铛时拉取
 
     // 页面可见时轮询，不可见时暂停
     function startPolling() {

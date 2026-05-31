@@ -311,7 +311,7 @@ export default function LoginPage() {
                       onClick={() => setLoginMode("phone")}
                       className={`rounded-md px-3 py-1 font-medium transition-colors ${
                         loginMode === "phone"
-                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          ? "bg-white text-brand shadow-sm"
                           : "text-gray-500 hover:text-gray-700"
                       }`}
                     >
@@ -322,7 +322,7 @@ export default function LoginPage() {
                       onClick={() => setLoginMode("email")}
                       className={`rounded-md px-3 py-1 font-medium transition-colors ${
                         loginMode === "email"
-                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          ? "bg-white text-brand shadow-sm"
                           : "text-gray-500 hover:text-gray-700"
                       }`}
                     >
@@ -333,7 +333,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setLoginType(loginType === "password" ? "code" : "password")}
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     {loginType === "password" ? "验证码登录" : "密码登录"}
                   </button>
@@ -348,7 +348,7 @@ export default function LoginPage() {
                         placeholder="请输入手机号"
                         value={loginPhone}
                         onChange={(e) => setLoginPhone(e.target.value)}
-                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30 pr-9"
+                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30 pr-9"
                       />
                       {loginPhone && (
                         <button
@@ -369,7 +369,7 @@ export default function LoginPage() {
                         placeholder="请输入邮箱"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30 pr-9"
+                        className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30 pr-9"
                       />
                       {loginEmail && (
                         <button
@@ -392,7 +392,7 @@ export default function LoginPage() {
                       placeholder="请输入密码"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                     />
                   )}
 
@@ -404,14 +404,14 @@ export default function LoginPage() {
                         placeholder="请输入验证码"
                         value={loginCode}
                         onChange={(e) => setLoginCode(e.target.value)}
-                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                       />
                       <Button
                         type="button"
                         onClick={handleLoginSendCode}
                         disabled={loading || countdown > 0}
                         variant="outline"
-                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                        className="h-11 shrink-0 rounded-xl border-brand px-4 text-brand hover:bg-brand/5 font-medium"
                       >
                         {countdown > 0 ? `${countdown}s` : "获取验证码"}
                       </Button>
@@ -421,7 +421,7 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                    className="h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
                   >
                     {loading ? "处理中..." : "登录"}
                   </Button>
@@ -430,7 +430,7 @@ export default function LoginPage() {
                 <p className="text-center text-sm text-gray-500">
                   <Link
                     href="/forgot-password"
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     忘记密码？
                   </Link>
@@ -441,7 +441,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setState("register")}
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     去注册
                   </button>
@@ -462,21 +462,21 @@ export default function LoginPage() {
                     placeholder="2-20位，支持中英文、数字、下划线、横杠"
                     value={regUsername}
                     onChange={(e) => setRegUsername(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
                   <Input
                     type="password"
                     placeholder="8-64位，需含字母和数字"
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
                   <Input
                     type="password"
                     placeholder="确认密码"
                     value={regConfirmPassword}
                     onChange={(e) => setRegConfirmPassword(e.target.value)}
-                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                    className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                   />
 
                   {/* 绑定方式切换 */}
@@ -490,7 +490,7 @@ export default function LoginPage() {
                       }}
                       className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
                         registerBind === "phone"
-                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          ? "bg-white text-brand shadow-sm"
                           : "text-gray-500"
                       }`}
                     >
@@ -505,7 +505,7 @@ export default function LoginPage() {
                       }}
                       className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
                         registerBind === "email"
-                          ? "bg-white text-[#7c3aed] shadow-sm"
+                          ? "bg-white text-brand shadow-sm"
                           : "text-gray-500"
                       }`}
                     >
@@ -521,14 +521,14 @@ export default function LoginPage() {
                         placeholder="请输入手机号"
                         value={regPhone}
                         onChange={(e) => setRegPhone(e.target.value)}
-                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                       />
                       <Button
                         type="button"
                         onClick={handleSendCode}
                         disabled={loading || countdown > 0}
                         variant="outline"
-                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                        className="h-11 shrink-0 rounded-xl border-brand px-4 text-brand hover:bg-brand/5 font-medium"
                       >
                         {countdown > 0 ? `${countdown}s` : "获取验证码"}
                       </Button>
@@ -540,14 +540,14 @@ export default function LoginPage() {
                         placeholder="请输入邮箱"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
-                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                        className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                       />
                       <Button
                         type="button"
                         onClick={handleSendCode}
                         disabled={loading || countdown > 0}
                         variant="outline"
-                        className="h-11 shrink-0 rounded-xl border-[#7c3aed] px-4 text-[#7c3aed] hover:bg-[#7c3aed]/5 font-medium"
+                        className="h-11 shrink-0 rounded-xl border-brand px-4 text-brand hover:bg-brand/5 font-medium"
                       >
                         {countdown > 0 ? `${countdown}s` : "获取验证码"}
                       </Button>
@@ -560,14 +560,14 @@ export default function LoginPage() {
                       placeholder="请输入验证码"
                       value={regCode}
                       onChange={(e) => setRegCode(e.target.value)}
-                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-[#7c3aed] focus:ring-[#7c3aed]/30"
+                      className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
                     />
                   )}
 
                   <Button
                     type="submit"
                     disabled={loading || !codeSent}
-                    className="h-11 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium"
+                    className="h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
                   >
                     {loading ? "处理中..." : "注册并登录"}
                   </Button>
@@ -578,7 +578,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setState("login")}
-                    className="text-[#7c3aed] font-medium hover:underline"
+                    className="text-brand font-medium hover:underline"
                   >
                     去登录
                   </button>
@@ -591,13 +591,13 @@ export default function LoginPage() {
 
       <footer className="border-t bg-white/80 py-4">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-4 text-sm text-gray-500">
-          <Link href="/terms" className="hover:text-[#7c3aed]">
+          <Link href="/terms" className="hover:text-brand">
             用户服务协议
           </Link>
-          <Link href="/privacy" className="hover:text-[#7c3aed]">
+          <Link href="/privacy" className="hover:text-brand">
             隐私政策
           </Link>
-          <Link href="/complaint" className="hover:text-[#7c3aed]">
+          <Link href="/complaint" className="hover:text-brand">
             侵权投诉
           </Link>
         </div>

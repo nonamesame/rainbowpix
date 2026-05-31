@@ -57,7 +57,7 @@ const iconMap: Record<string, typeof Bell> = {
 };
 
 const typeLabel: Record<string, { label: string; color: string }> = {
-  system: { label: "系统通知", color: "bg-purple-100 text-purple-700" },
+  system: { label: "系统通知", color: "bg-brand-light text-brand-dark" },
   announcement: { label: "公告", color: "bg-orange-100 text-orange-700" },
   like: { label: "点赞", color: "bg-red-100 text-red-700" },
   comment: { label: "评论", color: "bg-blue-100 text-blue-700" },
@@ -144,7 +144,7 @@ export default function NotificationModal({ notifications, initialNotification, 
             {notifications.some((n) => !n.read) && (
               <button
                 onClick={onMarkAllRead}
-                className="text-xs text-violet-600 hover:text-violet-700 hover:underline"
+                className="text-xs text-brand hover:text-brand-dark hover:underline"
               >
                 全部已读
               </button>
@@ -158,7 +158,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex min-h-[26px] shrink-0 flex-col items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
                   activeTab === tab.key
-                    ? "bg-purple-100 text-purple-700"
+                    ? "bg-brand-light text-brand-dark"
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                 }`}
               >
@@ -187,7 +187,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                   <div
                     key={n._id}
                     className={`group relative flex gap-3 border-b border-gray-100 px-4 py-3 transition-colors ${
-                      isSelected ? "bg-purple-50" : "hover:bg-gray-50"
+                      isSelected ? "bg-brand-light" : "hover:bg-gray-50"
                     }`}
                   >
                     <button
@@ -199,16 +199,16 @@ export default function NotificationModal({ notifications, initialNotification, 
                           : n.type === "comment" ? "bg-blue-50 text-blue-500"
                           : n.type === "comment_like" ? "bg-pink-50 text-pink-500"
                           : n.type === "announcement" ? "bg-orange-50 text-orange-500"
-                          : "bg-purple-50 text-purple-500"
+                          : "bg-brand-light text-brand"
                       }`}>
                         <Icon className="size-4" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`text-sm font-medium min-w-0 break-all ${isSelected ? "text-purple-700" : "text-gray-900"}`}>
+                          <span className={`text-sm font-medium min-w-0 break-all ${isSelected ? "text-brand-dark" : "text-gray-900"}`}>
                             {n.title}
                           </span>
-                          {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-purple-500" />}
+                          {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-brand-light0" />}
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{n.body}</p>
                         <span className="mt-1 block text-[10px] text-gray-400">
@@ -245,7 +245,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                     : selectedNotification.type === "comment" ? "bg-blue-50 text-blue-500"
                     : selectedNotification.type === "comment_like" ? "bg-pink-50 text-pink-500"
                     : selectedNotification.type === "announcement" ? "bg-orange-50 text-orange-500"
-                    : "bg-purple-50 text-purple-500"
+                    : "bg-brand-light text-brand"
                 }`}>
                   {(() => {
                     const Icon = iconMap[selectedNotification.type] || Bell;
@@ -299,7 +299,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                 {selectedNotification.link && (
                   <button
                     onClick={handleOpenLink}
-                    className="flex-1 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+                    className="flex-1 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-dark"
                   >
                     查看详情
                   </button>

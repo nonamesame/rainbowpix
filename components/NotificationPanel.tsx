@@ -36,7 +36,7 @@ const iconMap: Record<string, typeof Bell> = {
 };
 
 const typeLabel: Record<string, { label: string; color: string }> = {
-  system: { label: "系统通知", color: "bg-purple-100 text-purple-700" },
+  system: { label: "系统通知", color: "bg-brand-light text-brand-dark" },
   announcement: { label: "公告", color: "bg-orange-100 text-orange-700" },
   like: { label: "点赞", color: "bg-red-100 text-red-700" },
   comment: { label: "评论", color: "bg-blue-100 text-blue-700" },
@@ -75,7 +75,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
         {notifications.some((n) => !n.read) && (
           <button
             onClick={onMarkAllRead}
-            className="text-xs text-purple-600 hover:text-purple-700"
+            className="text-xs text-brand hover:text-brand-dark"
           >
             全部已读
           </button>
@@ -88,7 +88,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
             onClick={() => setActiveTab(tab.key)}
             className={`flex min-h-[26px] shrink-0 flex-col items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
               activeTab === tab.key
-                ? "bg-purple-100 text-purple-700"
+                ? "bg-brand-light text-brand-dark"
                 : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             }`}
           >
@@ -119,7 +119,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
               <div
                 key={n._id}
                 className={`group relative flex gap-3 px-4 py-3 transition-colors hover:bg-gray-50 ${
-                  !n.read ? "bg-purple-50/50" : ""
+                  !n.read ? "bg-brand-light/50" : ""
                 }`}
               >
                 <button
@@ -131,7 +131,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
                       : n.type === "comment" ? "bg-blue-50 text-blue-500"
                       : n.type === "comment_like" ? "bg-pink-50 text-pink-500"
                       : n.type === "announcement" ? "bg-orange-50 text-orange-500"
-                      : "bg-purple-50 text-purple-500"
+                      : "bg-brand-light text-brand"
                   }`}>
                     <Icon className="size-4" />
                   </div>
@@ -141,7 +141,7 @@ export default function NotificationPanel({ notifications, loading, onMarkRead, 
                       <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeLabel[n.type]?.color || "bg-gray-100 text-gray-600"}`}>
                         {typeLabel[n.type]?.label || n.type}
                       </span>
-                      {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-purple-500" />}
+                      {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-brand" />}
                     </div>
                     <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{n.body}</p>
                     <span className="mt-1 block text-[10px] text-gray-400">

@@ -212,7 +212,7 @@ export default function InspirationDetailClient({
                   height: rect.height,
                 }));
               }
-              router.back();
+              router.push("/");
             }}
             className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
           >
@@ -328,7 +328,7 @@ export default function InspirationDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowRefImage(true)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-brand-light px-2.5 py-1.5 text-xs font-medium text-brand-dark transition-colors hover:bg-brand-light"
                     >
                       <Eye className="size-3.5" />
                       查看参考图（{parseReferenceImages(item.reference_image_url).length} 张）
@@ -362,7 +362,7 @@ export default function InspirationDetailClient({
                       className="size-10 shrink-0 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex size-10 items-center justify-center rounded-full bg-purple-100 text-sm font-medium text-purple-700">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-brand-light text-sm font-medium text-brand-dark">
                       {item.username ? item.username.charAt(0).toUpperCase() : "?"}
                     </div>
                   )}
@@ -370,7 +370,7 @@ export default function InspirationDetailClient({
                     <Link
                       href={`/profile/${item.user_id}`}
                       target="_blank"
-                      className="block truncate text-sm font-medium text-gray-800 hover:text-purple-600 transition-colors"
+                      className="block truncate text-sm font-medium text-gray-800 hover:text-brand transition-colors"
                     >
                       {item.username || "匿名用户"}
                     </Link>

@@ -19,14 +19,14 @@ export default function GenerateLoading() {
             </div>
           </div>
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
-            <div className="h-8 w-32 animate-pulse rounded-full bg-violet-100" />
+            <div className="h-8 w-32 animate-pulse rounded-full bg-brand-light" />
             <div className="flex gap-1">
               <div className="h-7 w-10 animate-pulse rounded-full bg-gray-200" />
               <div className="h-7 w-10 animate-pulse rounded-full bg-gray-200" />
               <div className="h-7 w-10 animate-pulse rounded-full bg-gray-200" />
             </div>
             <div className="flex-1" />
-            <div className="h-8 w-16 animate-pulse rounded-full bg-violet-200" />
+            <div className="h-8 w-16 animate-pulse rounded-full bg-brand-light" />
           </div>
         </div>
       </div>
