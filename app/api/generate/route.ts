@@ -1,5 +1,5 @@
 import { decodeUserCookie } from "@/lib/utils";
-import { NextRequest, after } from "next/server";
+import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
@@ -8,6 +8,7 @@ import { generateImage as generateJimeng } from "@/lib/jimeng";
 import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
 import { generateImage as generateModelScope } from "@/lib/modelscope";
 import { getPixelSize, models } from "@/lib/models";
+import { checkCredits, deductCredits, refundCredits } from "@/lib/credits";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -57,6 +58,10 @@ function friendlyError(error: unknown): string {
 }
 
 export async function POST(request: NextRequest) {
+  let user: { uid: string; email?: string } | undefined;
+  let creditDeducted = false;
+  let creditCost = 0;
+
   try {
     // 1. 验证用户身份（通过 cookie）
     const userPayload = request.cookies.get("tcb_user")?.value;
@@ -64,7 +69,6 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "未登录" }, { status: 401 });
     }
 
-    let user: { uid: string; email?: string };
     try {
       user = decodeUserCookie(userPayload);
     } catch {
@@ -115,7 +119,7 @@ export async function POST(request: NextRequest) {
     const checkResult = await checkPrompt(prompt);
     if (!checkResult.passed) {
       await serverDb.collection("audit_logs").add({
-        user_id: user.uid,
+        user_id: user!.uid,
         prompt,
         reason: checkResult.reason,
         created_at: new Date().toISOString(),
@@ -134,6 +138,24 @@ export async function POST(request: NextRequest) {
         const url = await uploadBase64(base64, `ref-${Date.now()}-${referenceImageUrls.length}.png`);
         referenceImageUrls.push(url);
       }
+    }
+
+    // 4.5 额度检查与扣减（仅 gpt-image-2）
+    const creditModelConfig = models.find((m) => m.id === model);
+    creditCost = creditModelConfig?.creditCost || 0;
+
+    if (creditCost > 0) {
+      // 先快速检查余额，不够直接返回
+      const { hasEnough, balance } = await checkCredits(user!.uid, creditCost);
+      if (!hasEnough) {
+        return Response.json({ error: "额度不足" }, { status: 402 });
+      }
+      // 余额足够再扣减
+      const deductResult = await deductCredits(user!.uid, creditCost);
+      if (!deductResult.success) {
+        return Response.json({ error: deductResult.error }, { status: 402 });
+      }
+      creditDeducted = true;
     }
 
     // 5. 根据模型路由调用生成函数
@@ -163,12 +185,21 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: `不支持的模型: ${model}` }, { status: 400 });
     }
 
-    // 5. 写入 generations 集合（先用原始 URL）
+    // 5. 先上传到 CloudBase 存储，拿到永久 URL（避免返回巨大 base64 导致超时）
+    let permanentUrl: string;
+    if (imageUrl.startsWith("data:")) {
+      const base64 = imageUrl.split(",")[1];
+      permanentUrl = await uploadBase64(base64, `${model}-${Date.now()}.png`);
+    } else {
+      permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`);
+    }
+
+    // 6. 写入 generations 集合
     const addResult = await serverDb.collection("generations").add({
-      user_id: user.uid,
+      user_id: user!.uid,
       prompt,
       model,
-      image_url: imageUrl,
+      image_url: permanentUrl,
       reference_image_url: referenceImageUrls.length > 0 ? JSON.stringify(referenceImageUrls) : null,
       created_at: new Date().toISOString(),
       published: false,
@@ -180,7 +211,7 @@ export async function POST(request: NextRequest) {
     });
     const id = addResult.id!;
 
-    // 5.5 造相成功后更新每日用量
+    // 6.5 造相成功后更新每日用量
     if (model === "z-image-turbo") {
       try {
         const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
@@ -206,31 +237,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. 响应发送后，异步上传到 CloudBase 并更新数据库
-    after(async () => {
-      try {
-        let permanentUrl: string;
-        if (imageUrl.startsWith("data:")) {
-          const base64 = imageUrl.split(",")[1];
-          permanentUrl = await uploadBase64(base64, `${model}-${Date.now()}.png`);
-        } else {
-          permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`);
-        }
-        await serverDb.collection("generations").doc(id).update({
-          image_url: permanentUrl,
-        });
-      } catch (err) {
-        console.error("[generate] async upload failed:", err);
-      }
-    });
-
-    // 7. 立即返回原始 URL
+    // 7. 返回永久 URL（小字符串，不会超时）
     return Response.json({
       success: true,
-      image_url: imageUrl,
+      image_url: permanentUrl,
       generation_id: id,
     });
   } catch (error: any) {
+    // 生成失败时回滚已扣减的额度
+    if (creditDeducted && creditCost > 0 && user) {
+      await refundCredits(user.uid, creditCost);
+    }
+
     console.error("Generate API error:", error?.message);
 
     if (error.response?.data) {

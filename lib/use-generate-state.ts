@@ -83,6 +83,29 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
     setHydrated(true);
   }, [hasUrlParams]);
 
+  // 关闭页面时清除 localStorage（刷新时不清除）
+  useEffect(() => {
+    const TIMESTAMP_KEY = "rainbowpix_last_close";
+
+    // 检查是否是关闭后再打开（时间差 > 5秒）
+    const lastClose = sessionStorage.getItem(TIMESTAMP_KEY);
+    if (lastClose) {
+      const elapsed = Date.now() - parseInt(lastClose, 10);
+      if (elapsed > 5000) {
+        // 关闭后再打开，清除 localStorage
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      sessionStorage.removeItem(TIMESTAMP_KEY);
+    }
+
+    const handleBeforeUnload = () => {
+      // 记录关闭时间
+      sessionStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   // Ref to track current state for synchronous saves
   const stateRef = useRef({ model, prompt, size, result, saved: resultSaved, pending });
   stateRef.current = { model, prompt, size, result, saved: resultSaved, pending };

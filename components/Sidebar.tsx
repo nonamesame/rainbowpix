@@ -3,15 +3,24 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Sparkles, Palette, ImageIcon, LogOut, Megaphone } from "lucide-react";
+import { Sparkles, Paintbrush, ImageIcon, LogOut, Megaphone, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
 import { getAuth } from "@/lib/cloudbase/client";
 import NotificationBell from "./NotificationBell";
 import AnnouncementModal from "./AnnouncementModal";
 import ThemeSwitcher from "./ThemeSwitcher";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { Notification } from "@/lib/notifications";
 
 interface Props {
@@ -28,7 +37,7 @@ interface Props {
 
 const navItems = [
   { href: "/", label: "灵感", icon: Sparkles },
-  { href: "/generate", label: "生成", icon: Palette },
+  { href: "/generate", label: "生成", icon: Paintbrush },
   { href: "/gallery", label: "画廊", icon: ImageIcon },
 ];
 
@@ -47,6 +56,54 @@ export default function Sidebar({
   const pathname = usePathname();
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  // 额度相关
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [showRedeemDialog, setShowRedeemDialog] = useState(false);
+  const [redeemKey, setRedeemKey] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [hoveringAvatar, setHoveringAvatar] = useState(false);
+
+  // 获取额度余额
+  useEffect(() => {
+    if (user?.uid) {
+      fetch("/api/credits/balance")
+        .then((r) => r.json())
+        .then((data) => setCreditBalance(data.balance))
+        .catch(() => {});
+    }
+  }, [user?.uid]);
+
+  async function handleRedeemKey() {
+    if (!redeemKey.trim()) {
+      toast.error("请输入密钥");
+      return;
+    }
+
+    setRedeeming(true);
+    try {
+      const res = await fetch("/api/credits/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: redeemKey.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(`兑换成功！获得 ${data.credits_added} 额度`);
+        setCreditBalance(data.balance);
+        setRedeemKey("");
+        setShowRedeemDialog(false);
+      } else {
+        toast.error(data.error || "兑换失败");
+      }
+    } catch {
+      toast.error("兑换失败，请重试");
+    } finally {
+      setRedeeming(false);
+    }
+  }
 
   const fetchAnnouncements = useCallback(async () => {
     try {
@@ -135,26 +192,59 @@ export default function Sidebar({
               markAllRead={markAllRead}
               deleteNotification={deleteNotification}
             />
-            <Link
-              href="/profile"
-              target="_blank"
-              className="flex flex-col items-center gap-1"
+            <div
+              className="relative"
+              onMouseEnter={() => setHoveringAvatar(true)}
+              onMouseLeave={() => setHoveringAvatar(false)}
             >
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt="头像"
-                  className="size-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex size-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
-                  {user.username?.charAt(0).toUpperCase() ||
-                    user.email?.charAt(0).toUpperCase() ||
-                    user.phone?.charAt(0) ||
-                    "U"}
-                </div>
+              <Link
+                href="/profile"
+                target="_blank"
+                className="flex flex-col items-center gap-1"
+              >
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt="头像"
+                    className="size-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
+                    {user.username?.charAt(0).toUpperCase() ||
+                      user.email?.charAt(0).toUpperCase() ||
+                      user.phone?.charAt(0) ||
+                      "U"}
+                  </div>
+                )}
+              </Link>
+
+              {/* 额度浮出面板 */}
+              {hoveringAvatar && (
+                <>
+                  {/* 透明桥接区域，防止鼠标移动时面板消失 */}
+                  <div className="absolute left-full top-0 h-full w-3" />
+                  <div
+                    className="absolute left-full ml-3 bottom-[-8px] z-50 w-48 rounded-xl border border-gray-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-left-2 duration-200"
+                  >
+                    <div className="mb-2 flex items-center justify-center gap-1.5">
+                      <span className="text-[11px] text-gray-400">额度</span>
+                      <span className="text-lg text-gray-900">
+                        {creditBalance !== null ? creditBalance : "--"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowRedeemDialog(true);
+                        setHoveringAvatar(false);
+                      }}
+                      className="w-full rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-dark"
+                    >
+                      获取更多
+                    </button>
+                  </div>
+                </>
               )}
-            </Link>
+            </div>
             <button
               onClick={handleLogout}
               className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-red-500"
@@ -183,6 +273,41 @@ export default function Sidebar({
           onClose={() => setShowAnnouncement(false)}
         />
       )}
+
+      {/* 兑换额度对话框 */}
+      <Dialog open={showRedeemDialog} onOpenChange={(open) => { if (!open) setShowRedeemDialog(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>兑换额度</DialogTitle>
+            <DialogDescription>输入密钥以兑换生成额度</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">密钥</label>
+              <input
+                type="text"
+                value={redeemKey}
+                onChange={(e) => setRedeemKey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRedeemKey()}
+                placeholder="输入 64 位密钥"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+              />
+            </div>
+            {creditBalance !== null && (
+              <p className="text-xs text-gray-500">
+                当前余额: <span className="font-medium text-gray-700">{creditBalance}</span> 额度
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-full" onClick={() => setShowRedeemDialog(false)}>取消</Button>
+            <Button className="rounded-full" onClick={handleRedeemKey} disabled={redeeming || !redeemKey.trim()}>
+              {redeeming ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
+              兑换
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

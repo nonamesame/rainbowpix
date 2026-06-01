@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, Palette, ImageIcon, User } from "lucide-react";
+import { Sparkles, Paintbrush, ImageIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
 import ThemeSwitcher from "./ThemeSwitcher";
@@ -15,7 +15,7 @@ interface Props {
 
 const navItems = [
   { href: "/", label: "灵感", icon: Sparkles },
-  { href: "/generate", label: "生成", icon: Palette },
+  { href: "/generate", label: "生成", icon: Paintbrush },
   { href: "/gallery", label: "画廊", icon: ImageIcon, requireAuth: true },
 ];
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Download, Save, ImagePlus, X, Share2 } from "lucide-react";
+import { Loader2, Download, Save, ImagePlus, X, Share2, Coins } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,20 @@ export default function GeneratePageClient({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [referenceViewerImage, setReferenceViewerImage] = useState<string | null>(null);
   const [refHover, setRefHover] = useState(false);
+
+  // 额度相关
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [redeemKey, setRedeemKey] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [showRedeemDialog, setShowRedeemDialog] = useState(false);
+
+  // 获取额度余额
+  useEffect(() => {
+    fetch("/api/credits/balance")
+      .then((r) => r.json())
+      .then((data) => setCreditBalance(data.balance))
+      .catch(() => {});
+  }, []);
 
   // Track content appearance for lift animation
   useEffect(() => {
@@ -203,6 +217,37 @@ export default function GeneratePageClient({
     }
   }, []);
 
+  async function handleRedeemKey() {
+    if (!redeemKey.trim()) {
+      toast.error("请输入密钥");
+      return;
+    }
+
+    setRedeeming(true);
+    try {
+      const res = await fetch("/api/credits/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: redeemKey.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(`兑换成功！获得 ${data.credits_added} 额度`);
+        setCreditBalance(data.balance);
+        setRedeemKey("");
+        setShowRedeemDialog(false);
+      } else {
+        toast.error(data.error || "兑换失败");
+      }
+    } catch {
+      toast.error("兑换失败，请重试");
+    } finally {
+      setRedeeming(false);
+    }
+  }
+
   const currentModel = models.find((m) => m.id === model);
   const supportedRatios = currentModel?.supportedAspectRatios || ["1:1"];
 
@@ -304,6 +349,24 @@ export default function GeneratePageClient({
       return;
     }
 
+    // 客户端额度预检
+    const currentModel = models.find((m) => m.id === model);
+    const creditCost = currentModel?.creditCost || 0;
+    if (creditCost > 0) {
+      // 先刷新余额
+      try {
+        const res = await fetch("/api/credits/balance");
+        if (res.ok) {
+          const data = await res.json();
+          setCreditBalance(data.balance);
+          if (data.balance < creditCost) {
+            toast.error("额度不足", { duration: 3000 });
+            return;
+          }
+        }
+      } catch {}
+    }
+
     setPromptError(null);
     setLockedSize(getPixelSize(size, model));
     startPending({
@@ -336,6 +399,12 @@ export default function GeneratePageClient({
         clearPending();
         toast.error("请先登录", { duration: 3000 });
         window.location.href = "/login";
+        return;
+      }
+
+      if (res.status === 402) {
+        clearPending();
+        toast.error(data.error || "额度不足", { duration: 5000 });
         return;
       }
 
@@ -561,6 +630,22 @@ export default function GeneratePageClient({
 
             <div className="flex-1" />
 
+            {currentModel && currentModel.creditCost > 0 && (
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                <button
+                  type="button"
+                  onClick={() => setShowRedeemDialog(true)}
+                  className="flex items-center gap-1 rounded-full px-2 py-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  title="点击兑换额度"
+                >
+                  <Coins className="size-3.5" />
+                  <span>剩余{creditBalance !== null ? creditBalance : "--"}额度</span>
+                </button>
+                <span className="text-gray-300">·</span>
+                <span>{currentModel.creditCost}额度/1张图</span>
+              </div>
+            )}
+
             <Button
               onClick={handleGenerate}
               disabled={loading || !prompt.trim()}
@@ -687,6 +772,42 @@ export default function GeneratePageClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 兑换额度对话框 */}
+      <Dialog open={showRedeemDialog} onOpenChange={(open) => { if (!open) setShowRedeemDialog(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>兑换额度</DialogTitle>
+            <DialogDescription>输入密钥以兑换生成额度</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">密钥</label>
+              <input
+                type="text"
+                value={redeemKey}
+                onChange={(e) => setRedeemKey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRedeemKey()}
+                placeholder="输入 64 位密钥"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+              />
+            </div>
+            {creditBalance !== null && (
+              <p className="text-xs text-gray-500">
+                当前余额: <span className="font-medium text-gray-700">{creditBalance}</span> 额度
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-full" onClick={() => setShowRedeemDialog(false)}>取消</Button>
+            <Button className="rounded-full" onClick={handleRedeemKey} disabled={redeeming || !redeemKey.trim()}>
+              {redeeming ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
+              兑换
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {previewImage && <ImageViewer src={toProxyUrl(previewImage)} alt="预览" onClose={() => setPreviewImage(null)} />}
       {referenceViewerImage && <ImageViewer src={referenceViewerImage} alt="参考图" onClose={() => setReferenceViewerImage(null)} />}
     </div>

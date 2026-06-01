@@ -58,7 +58,7 @@ export default function ThemeSwitcher() {
   const toggle = useCallback(() => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.top - 8, left: rect.right + 8 });
+      setPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
     }
     setOpen(!open);
   }, [open]);
@@ -87,7 +87,7 @@ export default function ThemeSwitcher() {
             position: "fixed",
             top: pos.top,
             left: pos.left,
-            transform: "translateY(-100%)",
+            transform: "translateY(-50%)",
           }}
           className="z-[9999] w-52 rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
         >

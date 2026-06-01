@@ -89,7 +89,7 @@ export const models: Model[] = [
     name: "GPT Image 2",
     description: "OpenAI推出的图像生成模型，具有强大的理解能力",
     supportedAspectRatios: ["1:1", "3:4", "4:3", "9:16", "16:9"],
-    creditCost: 3,
+    creditCost: 1,
     supportsReferenceImage: true,
     maxReferenceImages: 4,
   },

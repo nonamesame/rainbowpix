@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Users, Image, Send, Bell, ArrowLeft, Trash2, Upload, Plus } from "lucide-react";
+import { Users, Image, Send, Bell, ArrowLeft, Trash2, Upload, Plus, Key, Copy, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface Stats {
@@ -61,10 +61,28 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   const [editingLikesId, setEditingLikesId] = useState<string | null>(null);
   const [editingLikesValue, setEditingLikesValue] = useState("");
 
+  // 密钥管理
+  const [keyCount, setKeyCount] = useState(10);
+  const [keyCredits, setKeyCredits] = useState(1);
+  const [generatingKeys, setGeneratingKeys] = useState(false);
+  const [generatedKeys, setGeneratedKeys] = useState<string[]>([]);
+  const [keyList, setKeyList] = useState<any[]>([]);
+  const [keyListTotal, setKeyListTotal] = useState(0);
+  const [keyListPage, setKeyListPage] = useState(1);
+  const [keyFilter, setKeyFilter] = useState<"all" | "used" | "unused">("unused");
+  const [loadingKeys, setLoadingKeys] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
+
   useEffect(() => {
     fetchData();
     fetchInspirationItems();
+    fetchKeyList();
   }, []);
+
+  useEffect(() => {
+    fetchKeyList();
+  }, [keyListPage, keyFilter]);
 
   async function fetchData() {
     setLoading(true);
@@ -355,6 +373,102 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
     } catch {
       toast.error("更新失败");
     }
+  }
+
+  // 密钥管理函数
+  async function handleGenerateKeys() {
+    if (keyCount < 1 || keyCount > 100) {
+      toast.error("数量必须在 1-100 之间");
+      return;
+    }
+
+    setGeneratingKeys(true);
+    setGeneratedKeys([]);
+    try {
+      const res = await fetch("/api/admin/credits/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({ count: keyCount, credits_per_key: keyCredits }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedKeys(data.keys);
+        toast.success(`成功生成 ${data.count} 个密钥`);
+        fetchKeyList();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "生成失败");
+      }
+    } catch {
+      toast.error("生成失败");
+    } finally {
+      setGeneratingKeys(false);
+    }
+  }
+
+  async function fetchKeyList() {
+    setLoadingKeys(true);
+    try {
+      const res = await fetch(
+        `/api/admin/credits/keys?page=${keyListPage}&filter=${keyFilter}`,
+        { headers: { "x-admin-key": adminKey } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setKeyList(data.items);
+        setKeyListTotal(data.total);
+      }
+    } catch {
+      toast.error("获取密钥列表失败");
+    } finally {
+      setLoadingKeys(false);
+    }
+  }
+
+  async function handleDeleteKeys() {
+    if (selectedKeys.size === 0) {
+      toast.error("请先选择要删除的密钥");
+      return;
+    }
+    if (!confirm(`确定要删除 ${selectedKeys.size} 个未使用的密钥吗？`)) return;
+
+    try {
+      const res = await fetch("/api/admin/credits/keys", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({ ids: Array.from(selectedKeys) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`已删除 ${data.deleted} 个密钥`);
+        setSelectedKeys(new Set());
+        fetchKeyList();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "删除失败");
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  }
+
+  function copyAllKeys() {
+    navigator.clipboard.writeText(generatedKeys.join("\n"));
+    toast.success("已复制所有密钥到剪贴板");
+  }
+
+  function copySingleKey(key: string, index: number) {
+    navigator.clipboard.writeText(key);
+    setCopiedKeyIndex(index);
+    toast.success("已复制");
+    setTimeout(() => setCopiedKeyIndex(null), 1500);
   }
 
   if (loading) {
@@ -761,6 +875,187 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                   ))
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 密钥管理 */}
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* 生成密钥 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="size-5" />
+                生成额度密钥
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">每密钥额度</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={keyCredits}
+                    onChange={(e) => setKeyCredits(parseInt(e.target.value) || 1)}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">每个密钥可兑换的额度数</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">生成数量</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={keyCount}
+                    onChange={(e) => setKeyCount(parseInt(e.target.value) || 1)}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">1-100</p>
+                </div>
+              </div>
+              <Button
+                onClick={handleGenerateKeys}
+                disabled={generatingKeys}
+                className="w-full bg-brand hover:bg-brand-dark"
+              >
+                {generatingKeys ? "生成中..." : `生成 ${keyCount} 个密钥`}
+              </Button>
+
+              {generatedKeys.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      已生成 {generatedKeys.length} 个密钥
+                    </span>
+                    <Button variant="outline" size="sm" onClick={copyAllKeys}>
+                      复制全部
+                    </Button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    {generatedKeys.map((key, i) => (
+                      <div key={i} className="flex items-center gap-2 font-mono text-xs text-gray-600">
+                        <span className="flex-1 break-all">{key}</span>
+                        <button
+                          onClick={() => copySingleKey(key, i)}
+                          className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                          title="复制密钥"
+                        >
+                          {copiedKeyIndex === i ? (
+                            <Check className="size-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-orange-500">
+                    请立即保存密钥，刷新页面后将无法再次查看
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 密钥列表 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Image className="size-5" />
+                密钥列表 ({keyListTotal})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <select
+                  value={keyFilter}
+                  onChange={(e) => {
+                    setKeyFilter(e.target.value as typeof keyFilter);
+                    setKeyListPage(1);
+                  }}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value="all">全部</option>
+                  <option value="unused">未使用</option>
+                  <option value="used">已使用</option>
+                </select>
+                {selectedKeys.size > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteKeys}
+                    className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="mr-1 size-3" />
+                    删除选中 ({selectedKeys.size})
+                  </Button>
+                )}
+              </div>
+
+              <div className="max-h-96 space-y-2 overflow-y-auto overscroll-contain">
+                {loadingKeys ? (
+                  <div className="py-8 text-center text-gray-400">加载中...</div>
+                ) : keyList.length === 0 ? (
+                  <div className="py-8 text-center text-gray-400">暂无密钥</div>
+                ) : (
+                  keyList.map((item) => (
+                    <div
+                      key={item._id}
+                      className="flex items-center gap-3 rounded-lg border border-gray-200 p-2"
+                    >
+                      {keyFilter !== "used" && (
+                        <input
+                          type="checkbox"
+                          checked={selectedKeys.has(item._id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedKeys);
+                            if (e.target.checked) next.add(item._id);
+                            else next.delete(item._id);
+                            setSelectedKeys(next);
+                          }}
+                          className="size-4 rounded border-gray-300"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-mono text-xs text-gray-600 break-all">
+                          {item.key.slice(0, 16)}...{item.key.slice(-8)}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
+                          <span>{item.credits} 额度</span>
+                          <span className={item.used ? "text-red-500" : "text-green-500"}>
+                            {item.used ? "已使用" : "未使用"}
+                          </span>
+                          <span>{new Date(item.created_at).toLocaleDateString("zh-CN")}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {keyListTotal > 50 && (
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={keyListPage <= 1}
+                    onClick={() => setKeyListPage((p) => p - 1)}
+                  >
+                    上一页
+                  </Button>
+                  <span className="text-sm text-gray-500">
+                    第 {keyListPage} 页 / 共 {Math.ceil(keyListTotal / 50)} 页
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={keyListPage * 50 >= keyListTotal}
+                    onClick={() => setKeyListPage((p) => p + 1)}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
