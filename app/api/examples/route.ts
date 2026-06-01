@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -29,16 +29,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (!userPayload) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
-
-  let user: { uid: string };
-  try {
-    user = decodeUserCookie(userPayload);
-  } catch {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const user = getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   const body = await request.json();

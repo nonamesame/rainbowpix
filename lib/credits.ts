@@ -67,6 +67,25 @@ export async function redeemKey(
     if (!err?.message?.includes("Db or Table not exist")) throw err;
   }
 
+  // 1.5 检查该用户每分钟兑换尝试次数（防暴力尝试）
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+    const { total: recentAttempts } = await serverDb
+      .collection("credit_keys")
+      .where({
+        used_by: userId,
+        used: true,
+        used_at: serverDb.command.gte(oneMinuteAgo),
+      })
+      .count();
+    if (recentAttempts >= MAX_REDEEM_ATTEMPTS_PER_MINUTE) {
+      return { success: false, error: "兑换请求过于频繁，请稍后再试" };
+    }
+  } catch (err: any) {
+    // 集合不存在时跳过检查
+    if (!err?.message?.includes("Db or Table not exist")) throw err;
+  }
+
   // 2. 查找密钥
   let keyDoc: any;
   try {

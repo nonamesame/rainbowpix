@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -7,16 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userPayload = _request.cookies.get("tcb_user")?.value;
-    if (!userPayload) {
-      return Response.json({ error: "未登录" }, { status: 401 });
-    }
-
-    let user: { uid: string };
-    try {
-      user = decodeUserCookie(userPayload);
-    } catch {
-      return Response.json({ error: "未登录" }, { status: 401 });
+    const user = getUserFromRequest(_request);
+    if (!user) {
+      return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -43,16 +36,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userPayload = _request.cookies.get("tcb_user")?.value;
-    if (!userPayload) {
-      return new Response(JSON.stringify({ error: "未登录" }), { status: 401, headers: { "Content-Type": "application/json" } });
-    }
-
-    let user: { uid: string };
-    try {
-      user = decodeUserCookie(userPayload);
-    } catch {
-      return new Response(JSON.stringify({ error: "未登录" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    const user = getUserFromRequest(_request);
+    if (!user) {
+      return new Response(JSON.stringify({ error: "未登录或登录已过期" }), { status: 401, headers: { "Content-Type": "application/json" } });
     }
 
     const { id } = await params;

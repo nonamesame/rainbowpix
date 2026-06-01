@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
 export type NotificationType = "system" | "like" | "comment" | "comment_like" | "announcement";
@@ -15,12 +15,10 @@ export interface Notification {
   created_at: string;
 }
 
+/**
+ * Parse user from request cookie (using HMAC-signed cookie verification).
+ * @deprecated Use getUserFromRequest() from @/lib/auth directly instead.
+ */
 export function parseUserFromCookie(request: NextRequest): { uid: string } | null {
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (!userPayload) return null;
-  try {
-    return decodeUserCookie(userPayload);
-  } catch {
-    return null;
-  }
+  return getUserFromRequest(request);
 }

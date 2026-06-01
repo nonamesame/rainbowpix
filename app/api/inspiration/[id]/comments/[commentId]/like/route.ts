@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
-import { parseUserFromCookie } from "@/lib/notifications";
-import { decodeUserCookie } from "@/lib/utils";
+
+import { getUserFromRequest } from "@/lib/auth";
 import { getDisplayName } from "@/lib/inspiration";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
-  const user = parseUserFromCookie(request);
+  const user = getUserFromRequest(request);
   if (!user) {
-    return Response.json({ error: "未登录" }, { status: 401 });
+    return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   const { commentId } = await params;
@@ -75,17 +75,12 @@ export async function POST(
     // Send notification to comment owner (if not self-like)
     const commentDoc = updatedComment?.[0];
     if (commentDoc && commentDoc.user_id !== user.uid) {
-      const userPayload = request.cookies.get("tcb_user")?.value;
-      let fullUser: { uid: string; email?: string; phone?: string } = user;
-      if (userPayload) {
-        try { fullUser = decodeUserCookie(userPayload); } catch {}
-      }
       const snippet = commentDoc.content?.length > 20 ? commentDoc.content.slice(0, 20) + "..." : commentDoc.content || "评论";
       await serverDb.collection("notifications").add({
         user_id: commentDoc.user_id,
         type: "comment_like",
         title: "评论获赞",
-        body: `${getDisplayName(fullUser)} 赞了你的评论「${snippet}」`,
+        body: `${getDisplayName(user)} 赞了你的评论「${snippet}」`,
         link: `/inspiration/${commentDoc.generation_id}`,
         image: null,
         read: false,

@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 import app from "@/lib/cloudbase/server";
@@ -26,12 +26,9 @@ export async function GET(
 
   // Check if requester is the owner
   let isOwner = false;
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      isOwner = user.uid === generation.user_id;
-    } catch {}
+  const authUser = getUserFromRequest(request);
+  if (authUser) {
+    isOwner = authUser.uid === generation.user_id;
   }
 
   // Owner always gets the original

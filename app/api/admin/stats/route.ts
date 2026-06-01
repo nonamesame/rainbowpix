@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
+import { checkAdmin } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   try {
     // 总用户数（从 users 集合查询，不算后台创建的作者）

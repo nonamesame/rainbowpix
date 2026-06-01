@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
+import { checkAdmin, logAdminAction } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   const body = await request.json();
   const { title, body: content, link, type, image } = body;
@@ -24,6 +23,8 @@ export async function POST(request: NextRequest) {
     read: false,
     created_at: new Date().toISOString(),
   });
+
+  await logAdminAction("send_notification", { title, type: type || "system" }, request);
 
   return Response.json({ id, title }, { status: 201 });
 }

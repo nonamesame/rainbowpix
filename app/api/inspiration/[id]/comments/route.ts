@@ -1,7 +1,7 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
-import { parseUserFromCookie } from "@/lib/notifications";
+
 import { getDisplayName } from "@/lib/inspiration";
 
 export async function GET(
@@ -17,12 +17,9 @@ export async function GET(
 
   // Optional auth for checking like status
   let currentUserId: string | null = null;
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      currentUserId = user.uid;
-    } catch {}
+  const authUser = getUserFromRequest(request);
+  if (authUser) {
+    currentUserId = authUser.uid;
   }
 
   // Verify generation exists and is published
@@ -114,18 +111,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = parseUserFromCookie(request);
-  if (!user) {
+  const fullUser = getUserFromRequest(request);
+  if (!fullUser) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
-
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  let fullUser: { uid: string; email?: string; phone?: string; username?: string; avatar_url?: string } = user as any;
-  if (userPayload) {
-    try {
-      fullUser = decodeUserCookie(userPayload);
-    } catch {}
-  }
+  const user = { uid: fullUser.uid };
 
   const { id: generationId } = await params;
 

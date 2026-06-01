@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -20,16 +20,9 @@ async function safeGetCollection(collection: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (!userPayload) {
-    return Response.json({ error: "未登录" }, { status: 401 });
-  }
-
-  let user: { uid: string; username?: string; email?: string; phone?: string };
-  try {
-    user = decodeUserCookie(userPayload);
-  } catch {
-    return Response.json({ error: "登录信息无效" }, { status: 401 });
+  const user = getUserFromRequest(request);
+  if (!user) {
+    return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   try {
@@ -97,16 +90,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (!userPayload) {
-    return Response.json({ error: "未登录" }, { status: 401 });
-  }
-
-  let user: { uid: string; username?: string; email?: string; phone?: string };
-  try {
-    user = decodeUserCookie(userPayload);
-  } catch {
-    return Response.json({ error: "登录信息无效" }, { status: 401 });
+  const user = getUserFromRequest(request);
+  if (!user) {
+    return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   const body = await request.json();

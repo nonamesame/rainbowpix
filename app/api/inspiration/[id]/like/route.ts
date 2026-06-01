@@ -1,25 +1,16 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
-import { parseUserFromCookie } from "@/lib/notifications";
+
 import { getDisplayName } from "@/lib/inspiration";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = parseUserFromCookie(request);
+  const user = getUserFromRequest(request);
   if (!user) {
-    return Response.json({ error: "未登录" }, { status: 401 });
-  }
-
-  // Get full user info for display name
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  let fullUser: { uid: string; email?: string; phone?: string } = user;
-  if (userPayload) {
-    try {
-      fullUser = decodeUserCookie(userPayload);
-    } catch {}
+    return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   const { id: generationId } = await params;
@@ -92,7 +83,7 @@ export async function POST(
         user_id: generation.user_id,
         type: "like",
         title: "收到点赞",
-        body: `${getDisplayName(fullUser)} 赞了你的「${workName}」`,
+        body: `${getDisplayName(user)} 赞了你的「${workName}」`,
         link: "/",
         image: null,
         read: false,

@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { serverDb } from "@/lib/cloudbase/server";
@@ -63,16 +63,10 @@ export async function POST(request: NextRequest) {
   let creditCost = 0;
 
   try {
-    // 1. 验证用户身份（通过 cookie）
-    const userPayload = request.cookies.get("tcb_user")?.value;
-    if (!userPayload) {
-      return Response.json({ error: "未登录" }, { status: 401 });
-    }
-
-    try {
-      user = decodeUserCookie(userPayload);
-    } catch {
-      return Response.json({ error: "登录信息无效" }, { status: 401 });
+    // 1. 验证用户身份（通过签名 cookie）
+    user = getUserFromRequest(request) as { uid: string; email?: string } | undefined;
+    if (!user) {
+      return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
     }
 
     // 2. 解析 FormData
@@ -93,19 +87,20 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "prompt 为必填参数" }, { status: 400 });
     }
 
-    // 2.5 造相每日生成量限制
+    // 2.5 造相每日生成量限制（每用户每天50次）
+    const DAILY_FREE_LIMIT = 50;
     if (model === "z-image-turbo") {
       try {
         const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" }); // YYYY-MM-DD
         const usageDoc = await serverDb
           .collection("model_daily_usage")
-          .where({ date: today, model: "z-image-turbo" })
+          .where({ date: today, model: "z-image-turbo", user_id: user!.uid })
           .limit(1)
           .get();
         const currentCount = usageDoc.data?.[0]?.count || 0;
-        if (currentCount >= 2000) {
+        if (currentCount >= DAILY_FREE_LIMIT) {
           return Response.json(
-            { error: "今日该模型已达上限，请明天再来吧！" },
+            { error: "今日免费生成次数已达上限，请明天再来吧！" },
             { status: 429 }
           );
         }
@@ -211,13 +206,13 @@ export async function POST(request: NextRequest) {
     });
     const id = addResult.id!;
 
-    // 6.5 造相成功后更新每日用量
+    // 6.5 造相成功后更新每日用量（按用户统计）
     if (model === "z-image-turbo") {
       try {
         const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
         const usageDoc = await serverDb
           .collection("model_daily_usage")
-          .where({ date: today, model: "z-image-turbo" })
+          .where({ date: today, model: "z-image-turbo", user_id: user!.uid })
           .limit(1)
           .get();
         if (usageDoc.data?.[0]) {
@@ -228,6 +223,7 @@ export async function POST(request: NextRequest) {
           await serverDb.collection("model_daily_usage").add({
             date: today,
             model: "z-image-turbo",
+            user_id: user!.uid,
             count: 1,
           });
         }

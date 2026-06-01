@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import app from "@/lib/cloudbase/server";
+import { checkAdmin, logAdminAction } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   try {
     const formData = await request.formData();
@@ -45,6 +44,8 @@ export async function POST(request: NextRequest) {
     const imageUrl = `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
 
     console.log("Upload success:", { fileID, imageUrl });
+
+    await logAdminAction("upload_image", { filename: file.name }, request);
 
     // 直接返回 fileID 用于调试
     return Response.json({ url: imageUrl, fileID, raw: uploadRes }, { status: 200 });

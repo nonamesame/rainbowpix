@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import { generateKeys } from "@/lib/credits";
+import { checkAdmin, logAdminAction } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   const body = await request.json();
   const { count, credits_per_key } = body;
@@ -20,6 +19,8 @@ export async function POST(request: NextRequest) {
       : 1;
 
   const keys = await generateKeys(count, creditsPerKey, "admin");
+
+  await logAdminAction("generate_keys", { count, creditsPerKey }, request);
 
   return Response.json({
     success: true,

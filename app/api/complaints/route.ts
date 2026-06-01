@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -10,16 +10,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
   }
 
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  let userId: string | null = null;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      userId = user.uid || null;
-    } catch {
-      // ignore
-    }
-  }
+  const authUser = getUserFromRequest(request);
+  let userId: string | null = authUser?.uid || null;
 
   const { id } = await serverDb.collection("complaints").add({
     name,

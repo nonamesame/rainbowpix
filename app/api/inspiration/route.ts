@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -22,12 +22,9 @@ export async function GET(request: NextRequest) {
 
   // Optional auth for checking like status
   let currentUserId: string | null = null;
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      currentUserId = user.uid;
-    } catch {}
+  const authUser = getUserFromRequest(request);
+  if (authUser) {
+    currentUserId = authUser.uid;
   }
 
   const { data } = await serverDb

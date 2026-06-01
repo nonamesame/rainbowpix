@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -14,14 +14,9 @@ export async function GET(
 
   // Get current viewer's uid from cookie (optional, for like status)
   let viewerUid: string | null = null;
-  const userPayload = request.cookies.get("tcb_user")?.value;
-  if (userPayload) {
-    try {
-      const user = decodeUserCookie(userPayload);
-      viewerUid = user.uid;
-    } catch {
-      // ignore
-    }
+  const authUser = getUserFromRequest(request);
+  if (authUser) {
+    viewerUid = authUser.uid;
   }
 
   try {

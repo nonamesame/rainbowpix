@@ -73,6 +73,10 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
+  const [copiedListKeyId, setCopiedListKeyId] = useState<string | null>(null);
+
+  // 用于防止竞态条件的请求ID
+  const keyListRequestIdRef = useRef(0);
 
   useEffect(() => {
     fetchData();
@@ -398,7 +402,12 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
         const data = await res.json();
         setGeneratedKeys(data.keys);
         toast.success(`成功生成 ${data.count} 个密钥`);
-        fetchKeyList();
+        // 切换到第一页并等待列表刷新，确保新密钥显示在右侧列表
+        setKeyListPage(1);
+        setKeyFilter("unused");
+        // 等待 state 更新后再刷新，确保用新的 page/filter 参数请求
+        await new Promise((r) => setTimeout(r, 100));
+        await fetchKeyList();
       } else {
         const data = await res.json();
         toast.error(data.error || "生成失败");
@@ -411,20 +420,25 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   }
 
   async function fetchKeyList() {
+    const requestId = ++keyListRequestIdRef.current;
     setLoadingKeys(true);
     try {
       const res = await fetch(
         `/api/admin/credits/keys?page=${keyListPage}&filter=${keyFilter}`,
         { headers: { "x-admin-key": adminKey } }
       );
+      // 只有最新的请求才更新UI，防止旧请求覆盖新数据
+      if (requestId !== keyListRequestIdRef.current) return;
       if (res.ok) {
         const data = await res.json();
         setKeyList(data.items);
         setKeyListTotal(data.total);
       }
     } catch {
+      if (requestId !== keyListRequestIdRef.current) return;
       toast.error("获取密钥列表失败");
     } finally {
+      if (requestId !== keyListRequestIdRef.current) return;
       setLoadingKeys(false);
     }
   }
@@ -1017,8 +1031,25 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                         />
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="font-mono text-xs text-gray-600 break-all">
-                          {item.key.slice(0, 16)}...{item.key.slice(-8)}
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-xs text-gray-600 break-all">
+                            {item.key}
+                          </span>
+                          <button
+                            onClick={async () => {
+                              await navigator.clipboard.writeText(item.key);
+                              setCopiedListKeyId(item._id);
+                              setTimeout(() => setCopiedListKeyId(null), 2000);
+                            }}
+                            className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                            title="复制密钥"
+                          >
+                            {copiedListKeyId === item._id ? (
+                              <Check className="size-3.5 text-green-500" />
+                            ) : (
+                              <Copy className="size-3.5" />
+                            )}
+                          </button>
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
                           <span>{item.credits} 额度</span>

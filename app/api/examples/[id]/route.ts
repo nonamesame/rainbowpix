@@ -1,4 +1,4 @@
-import { decodeUserCookie } from "@/lib/utils";
+import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 
@@ -6,16 +6,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userPayload = _request.cookies.get("tcb_user")?.value;
-  if (!userPayload) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
-
-  let user: { uid: string };
-  try {
-    user = decodeUserCookie(userPayload);
-  } catch {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const user = getUserFromRequest(_request);
+  if (!user) {
+    return NextResponse.json({ error: "未登录或登录已过期" }, { status: 401 });
   }
 
   const { id } = await params;

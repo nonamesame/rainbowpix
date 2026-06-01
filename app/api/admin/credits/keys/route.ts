@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
+import { checkAdmin, logAdminAction } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -49,10 +48,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey !== process.env.ADMIN_API_KEY) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   const body = await request.json();
   const { ids } = body;
@@ -82,6 +79,8 @@ export async function DELETE(request: NextRequest) {
       // 跳过不存在的文档
     }
   }
+
+  await logAdminAction("delete_keys", { ids }, request);
 
   return Response.json({ success: true, deleted });
 }

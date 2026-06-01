@@ -2,20 +2,15 @@ import { NextRequest } from "next/server";
 import { serverDb } from "@/lib/cloudbase/server";
 import app from "@/lib/cloudbase/server";
 import { createHash } from "crypto";
-
-function checkAdmin(request: NextRequest) {
-  const adminKey = request.headers.get("x-admin-key");
-  return adminKey === process.env.ADMIN_API_KEY;
-}
+import { checkAdmin, logAdminAction } from "@/lib/admin-auth";
 
 function generateAuthorUid(authorName: string): string {
   return "author_" + createHash("md5").update(authorName).digest("hex").slice(0, 16);
 }
 
 export async function GET(request: NextRequest) {
-  if (!checkAdmin(request)) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   try {
     // Query both old "admin" uid and new "author_xxx" format
@@ -40,9 +35,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  if (!checkAdmin(request)) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   const { id, likes_count } = await request.json();
 
@@ -57,6 +51,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     await serverDb.collection("generations").doc(id).update({ likes_count: count });
+    await logAdminAction("update_inspiration", { id, likes_count: count }, request);
     return Response.json({ success: true, likes_count: count });
   } catch (error) {
     console.error("Update likes_count error:", error);
@@ -65,9 +60,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!checkAdmin(request)) {
-    return Response.json({ error: "无权访问" }, { status: 403 });
-  }
+  const adminCheck = checkAdmin(request);
+  if (!adminCheck.valid) return adminCheck.response;
 
   try {
     const formData = await request.formData();
@@ -120,6 +114,8 @@ export async function POST(request: NextRequest) {
       reference_image_url: null,
       created_at: new Date().toISOString(),
     });
+
+    await logAdminAction("create_inspiration", { title: title.trim() || null }, request);
 
     return Response.json({ id, image_url: imageUrl, prompt: prompt.trim(), model, title: title.trim() }, { status: 201 });
   } catch (error) {

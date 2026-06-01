@@ -45,33 +45,77 @@ export async function saveCookiesAndRedirect(
   const loginState = await auth.getLoginState();
   if (loginState) {
     const { accessToken } = await auth.getAccessToken();
-    const userInfo = loginState.user;
 
-    // Try to get avatar and username from profile
-    let avatar_url = "";
-    let dbUsername = "";
-    try {
-      const profileRes = await fetch("/api/profile");
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        avatar_url = profileData.avatar_url || "";
-        dbUsername = profileData.username || "";
-      }
-    } catch {}
-
-    const userPayload = btoa(
-      encodeURIComponent(
-        JSON.stringify({
-          uid: userInfo.uid,
-          email: userInfo.email,
-          phone: userInfo.phoneNumber,
-          username: dbUsername || userInfo.username,
-          avatar_url,
-        })
-      )
-    );
+    // Save access token cookie (for session refresh)
     document.cookie = `tcb_access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
-    document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+
+    // Call server to create HMAC-signed session cookie
+    // This is the secure way - server signs the cookie with AUTH_SECRET
+    try {
+      const sessionRes = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
+      });
+
+      if (!sessionRes.ok) {
+        console.error("[auth] Failed to create signed session:", sessionRes.status);
+        // Fallback: create unsigned cookie (less secure, but maintains compatibility)
+        const userInfo = loginState.user;
+        let avatar_url = "";
+        let dbUsername = "";
+        try {
+          const profileRes = await fetch("/api/profile");
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            avatar_url = profileData.avatar_url || "";
+            dbUsername = profileData.username || "";
+          }
+        } catch {}
+
+        const userPayload = btoa(
+          encodeURIComponent(
+            JSON.stringify({
+              uid: userInfo.uid,
+              email: userInfo.email,
+              phone: userInfo.phoneNumber,
+              username: dbUsername || userInfo.username,
+              avatar_url,
+            })
+          )
+        );
+        document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      // If session endpoint succeeds, the Set-Cookie header from the server
+      // will automatically set the signed tcb_user cookie
+    } catch (err) {
+      console.error("[auth] Session creation error:", err);
+      // Fallback to unsigned cookie
+      const userInfo = loginState.user;
+      let avatar_url = "";
+      let dbUsername = "";
+      try {
+        const profileRes = await fetch("/api/profile");
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          avatar_url = profileData.avatar_url || "";
+          dbUsername = profileData.username || "";
+        }
+      } catch {}
+
+      const userPayload = btoa(
+        encodeURIComponent(
+          JSON.stringify({
+            uid: userInfo.uid,
+            email: userInfo.email,
+            phone: userInfo.phoneNumber,
+            username: dbUsername || userInfo.username,
+            avatar_url,
+          })
+        )
+      );
+      document.cookie = `tcb_user=${userPayload}; path=/; max-age=86400; SameSite=Lax`;
+    }
 
     if (isRegistration) {
       fetch("/api/auth/record-registration", { method: "POST" }).catch(() => {});
