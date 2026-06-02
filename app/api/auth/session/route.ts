@@ -100,13 +100,13 @@ export async function POST(request: NextRequest) {
       user: { uid, email, phone, username, avatar_url },
     });
 
-    // Set cookie via Set-Cookie header (HttpOnly, Secure, SameSite=Strict)
+    // Set cookie via Set-Cookie header (Secure, SameSite=Strict)
+    // 不能加 HttpOnly，因为客户端 JS 需要通过 document.cookie 读取来判断登录状态
     const cookieOptions = [
       `tcb_user=${signedCookie}`,
       "path=/",
       `max-age=${86400}`,
       "SameSite=Strict",
-      "HttpOnly",
     ];
 
     // Only add Secure in production

@@ -306,6 +306,8 @@ export async function refundCredits(
 ): Promise<void> {
   if (amount <= 0) return;
 
+  console.warn(`[credits] refundCredits: user=${userId}, amount=${amount}`);
+
   try {
     const { data } = await serverDb
       .collection("user_credits")

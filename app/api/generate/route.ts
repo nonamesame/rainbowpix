@@ -8,7 +8,7 @@ import { generateImage as generateJimeng } from "@/lib/jimeng";
 import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
 import { generateImage as generateModelScope } from "@/lib/modelscope";
 import { getPixelSize, models } from "@/lib/models";
-import { checkCredits, deductCredits, refundCredits } from "@/lib/credits";
+import { deductCredits, refundCredits } from "@/lib/credits";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -88,7 +88,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 2.5 造相每日生成量限制（每用户每天50次）
+    // 采用"先增后验"策略：先原子递增计数器，再检查是否超限，超限则回滚。
+    // 这样即使并发请求同时通过检查，也只会有一个成功，另一个会被回滚拒绝。
     const DAILY_FREE_LIMIT = 50;
+    let dailyUsageId: string | undefined;
     if (model === "z-image-turbo") {
       try {
         const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" }); // YYYY-MM-DD
@@ -97,12 +100,33 @@ export async function POST(request: NextRequest) {
           .where({ date: today, model: "z-image-turbo", user_id: user!.uid })
           .limit(1)
           .get();
-        const currentCount = usageDoc.data?.[0]?.count || 0;
-        if (currentCount >= DAILY_FREE_LIMIT) {
-          return Response.json(
-            { error: "今日免费生成次数已达上限，请明天再来吧！" },
-            { status: 429 }
-          );
+
+        if (usageDoc.data?.[0]) {
+          // 已有记录：先原子 +1，再检查是否超限
+          dailyUsageId = usageDoc.data[0]._id;
+          await serverDb.collection("model_daily_usage").doc(dailyUsageId!).update({
+            count: serverDb.command.inc(1),
+          });
+          const { data: afterData } = await serverDb.collection("model_daily_usage").doc(dailyUsageId!).get();
+          if ((afterData?.count ?? 0) > DAILY_FREE_LIMIT) {
+            // 超限：回滚本次递增
+            await serverDb.collection("model_daily_usage").doc(dailyUsageId!).update({
+              count: serverDb.command.inc(-1),
+            });
+            return Response.json(
+              { error: "今日免费生成次数已达上限，请明天再来吧！" },
+              { status: 429 }
+            );
+          }
+        } else {
+          // 首次使用：创建记录，count=1
+          const addResult = await serverDb.collection("model_daily_usage").add({
+            date: today,
+            model: "z-image-turbo",
+            user_id: user!.uid,
+            count: 1,
+          });
+          dailyUsageId = addResult.id!;
         }
       } catch (err: any) {
         // 集合不存在时跳过限额检查
@@ -122,7 +146,20 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: checkResult.reason }, { status: 400 });
     }
 
-    // 4. 处理参考图片（如果有）
+    // 4. 额度检查与扣减（仅 gpt-image-2）— 放在参考图片上传之前，避免余额不足时浪费上传
+    const creditModelConfig = models.find((m) => m.id === model);
+    creditCost = creditModelConfig?.creditCost || 0;
+
+    if (creditCost > 0) {
+      // 直接调用 deductCredits，内部已有余额检查 + 并发安全重试
+      const deductResult = await deductCredits(user!.uid, creditCost);
+      if (!deductResult.success) {
+        return Response.json({ error: deductResult.error }, { status: 402 });
+      }
+      creditDeducted = true;
+    }
+
+    // 5. 处理参考图片（额度扣减之后，避免余额不足时浪费上传）
     const referenceImagesBase64: string[] = [];
     const referenceImageUrls: string[] = [];
     for (const file of referenceImageFiles) {
@@ -135,25 +172,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4.5 额度检查与扣减（仅 gpt-image-2）
-    const creditModelConfig = models.find((m) => m.id === model);
-    creditCost = creditModelConfig?.creditCost || 0;
-
-    if (creditCost > 0) {
-      // 先快速检查余额，不够直接返回
-      const { hasEnough, balance } = await checkCredits(user!.uid, creditCost);
-      if (!hasEnough) {
-        return Response.json({ error: "额度不足" }, { status: 402 });
-      }
-      // 余额足够再扣减
-      const deductResult = await deductCredits(user!.uid, creditCost);
-      if (!deductResult.success) {
-        return Response.json({ error: deductResult.error }, { status: 402 });
-      }
-      creditDeducted = true;
-    }
-
-    // 5. 根据模型路由调用生成函数
+    // 6. 根据模型路由调用生成函数
     let imageUrl: string;
 
     switch (model) {
@@ -180,7 +199,7 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: `不支持的模型: ${model}` }, { status: 400 });
     }
 
-    // 5. 先上传到 CloudBase 存储，拿到永久 URL（避免返回巨大 base64 导致超时）
+    // 7. 上传到 CloudBase 存储，拿到永久 URL
     let permanentUrl: string;
     if (imageUrl.startsWith("data:")) {
       const base64 = imageUrl.split(",")[1];
@@ -189,7 +208,7 @@ export async function POST(request: NextRequest) {
       permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`);
     }
 
-    // 6. 写入 generations 集合
+    // 8. 写入 generations 集合
     const addResult = await serverDb.collection("generations").add({
       user_id: user!.uid,
       prompt,
@@ -206,34 +225,7 @@ export async function POST(request: NextRequest) {
     });
     const id = addResult.id!;
 
-    // 6.5 造相成功后更新每日用量（按用户统计）
-    if (model === "z-image-turbo") {
-      try {
-        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
-        const usageDoc = await serverDb
-          .collection("model_daily_usage")
-          .where({ date: today, model: "z-image-turbo", user_id: user!.uid })
-          .limit(1)
-          .get();
-        if (usageDoc.data?.[0]) {
-          await serverDb.collection("model_daily_usage").doc(usageDoc.data[0]._id).update({
-            count: serverDb.command.inc(1),
-          });
-        } else {
-          await serverDb.collection("model_daily_usage").add({
-            date: today,
-            model: "z-image-turbo",
-            user_id: user!.uid,
-            count: 1,
-          });
-        }
-      } catch (err: any) {
-        // 集合不存在时跳过用量记录
-        if (!err?.message?.includes("Db or Table not exist")) console.error("model_daily_usage update failed:", err);
-      }
-    }
-
-    // 7. 返回永久 URL（小字符串，不会超时）
+    // 9. 返回永久 URL
     return Response.json({
       success: true,
       image_url: permanentUrl,

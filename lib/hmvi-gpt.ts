@@ -38,8 +38,6 @@ export async function generateImage(
       }
     );
 
-    console.log("HMVI edits response:", JSON.stringify(response.data, null, 2));
-
     if (response.data.error) {
       throw new Error(response.data.error.message || "GPT Image 2 生成失败");
     }
@@ -65,8 +63,6 @@ export async function generateImage(
       },
     }
   );
-
-  console.log("HMVI generations response:", JSON.stringify(response.data, null, 2));
 
   if (response.data.error) {
     throw new Error(response.data.error.message || "GPT Image 2 生成失败");
