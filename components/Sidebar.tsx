@@ -5,22 +5,15 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Sparkles, Paintbrush, ImageIcon, LogOut, Megaphone, Loader2 } from "lucide-react";
+import { Sparkles, Paintbrush, ImageIcon, LogOut, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
 import { getAuth } from "@/lib/cloudbase/client";
 import NotificationBell from "./NotificationBell";
 import AnnouncementModal from "./AnnouncementModal";
 import ThemeSwitcher from "./ThemeSwitcher";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import RedeemDialog from "./RedeemDialog";
+import { useCreditBalance } from "@/hooks/useCreditBalance";
 import type { Notification } from "@/lib/notifications";
 
 interface Props {
@@ -58,52 +51,9 @@ export default function Sidebar({
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // 额度相关
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const { balance: creditBalance } = useCreditBalance();
   const [showRedeemDialog, setShowRedeemDialog] = useState(false);
-  const [redeemKey, setRedeemKey] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
   const [hoveringAvatar, setHoveringAvatar] = useState(false);
-
-  // 获取额度余额
-  useEffect(() => {
-    if (user?.uid) {
-      fetch("/api/credits/balance")
-        .then((r) => r.json())
-        .then((data) => setCreditBalance(data.balance))
-        .catch(() => {});
-    }
-  }, [user?.uid]);
-
-  async function handleRedeemKey() {
-    if (!redeemKey.trim()) {
-      toast.error("请输入密钥");
-      return;
-    }
-
-    setRedeeming(true);
-    try {
-      const res = await fetch("/api/credits/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: redeemKey.trim() }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success(`兑换成功！获得 ${data.credits_added} 额度`);
-        setCreditBalance(data.balance);
-        setRedeemKey("");
-        setShowRedeemDialog(false);
-      } else {
-        toast.error(data.error || "兑换失败");
-      }
-    } catch {
-      toast.error("兑换失败，请重试");
-    } finally {
-      setRedeeming(false);
-    }
-  }
 
   const fetchAnnouncements = useCallback(async () => {
     try {
@@ -275,39 +225,10 @@ export default function Sidebar({
       )}
 
       {/* 兑换额度对话框 */}
-      <Dialog open={showRedeemDialog} onOpenChange={(open) => { if (!open) setShowRedeemDialog(false); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>兑换额度</DialogTitle>
-            <DialogDescription>输入密钥以兑换生成额度</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">密钥</label>
-              <input
-                type="text"
-                value={redeemKey}
-                onChange={(e) => setRedeemKey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleRedeemKey()}
-                placeholder="输入 64 位密钥"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-              />
-            </div>
-            {creditBalance !== null && (
-              <p className="text-xs text-gray-500">
-                当前余额: <span className="font-medium text-gray-700">{creditBalance}</span> 额度
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="rounded-full" onClick={() => setShowRedeemDialog(false)}>取消</Button>
-            <Button className="rounded-full" onClick={handleRedeemKey} disabled={redeeming || !redeemKey.trim()}>
-              {redeeming ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
-              兑换
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RedeemDialog
+        open={showRedeemDialog}
+        onOpenChange={setShowRedeemDialog}
+      />
     </>
   );
 }

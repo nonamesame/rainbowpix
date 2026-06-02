@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
@@ -17,7 +17,17 @@ type LoginType = "password" | "code";
 type RegisterBind = "phone" | "email";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isAdmin = searchParams.get("admin") === "1";
   const [state, setState] = useState<PageState>("login");
   const [loginMode, setLoginMode] = useState<LoginMode>("phone");
   const [loginType, setLoginType] = useState<LoginType>("password");
@@ -305,30 +315,34 @@ export default function LoginPage() {
               <>
                 {/* 切换登录方式 */}
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex gap-1 rounded-lg bg-gray-100 p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setLoginMode("phone")}
-                      className={`rounded-md px-3 py-1 font-medium transition-colors ${
-                        loginMode === "phone"
-                          ? "bg-white text-brand shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}
-                    >
-                      手机号
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLoginMode("email")}
-                      className={`rounded-md px-3 py-1 font-medium transition-colors ${
-                        loginMode === "email"
-                          ? "bg-white text-brand shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}
-                    >
-                      邮箱
-                    </button>
-                  </div>
+                  {isAdmin ? (
+                    <div className="flex gap-1 rounded-lg bg-gray-100 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setLoginMode("phone")}
+                        className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                          loginMode === "phone"
+                            ? "bg-white text-brand shadow-sm"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        手机号
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLoginMode("email")}
+                        className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                          loginMode === "email"
+                            ? "bg-white text-brand shadow-sm"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        邮箱
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-500">手机号登录</span>
+                  )}
 
                   <button
                     type="button"
@@ -480,38 +494,42 @@ export default function LoginPage() {
                   />
 
                   {/* 绑定方式切换 */}
-                  <div className="flex rounded-xl bg-gray-100 p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRegisterBind("phone");
-                        setCodeSent(false);
-                        setRegCode("");
-                      }}
-                      className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                        registerBind === "phone"
-                          ? "bg-white text-brand shadow-sm"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      绑定手机号
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRegisterBind("email");
-                        setCodeSent(false);
-                        setRegCode("");
-                      }}
-                      className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                        registerBind === "email"
-                          ? "bg-white text-brand shadow-sm"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      绑定邮箱
-                    </button>
-                  </div>
+                  {isAdmin ? (
+                    <div className="flex rounded-xl bg-gray-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegisterBind("phone");
+                          setCodeSent(false);
+                          setRegCode("");
+                        }}
+                        className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                          registerBind === "phone"
+                            ? "bg-white text-brand shadow-sm"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        绑定手机号
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegisterBind("email");
+                          setCodeSent(false);
+                          setRegCode("");
+                        }}
+                        className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                          registerBind === "email"
+                            ? "bg-white text-brand shadow-sm"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        绑定邮箱
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">绑定手机号</p>
+                  )}
 
                   {/* 手机号/邮箱 + 验证码 */}
                   {registerBind === "phone" ? (

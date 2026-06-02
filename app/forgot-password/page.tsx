@@ -12,19 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
 type Step = "identify" | "reset";
-type Mode = "phone" | "email";
 
-function maskIdentifier(mode: Mode, value: string): string {
-  if (mode === "phone") {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length >= 7) {
-      return digits.slice(0, 3) + "****" + digits.slice(-4);
-    }
-    return value;
-  }
-  const [local, domain] = value.split("@");
-  if (local && domain) {
-    return local[0] + "***@" + domain;
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length >= 7) {
+    return digits.slice(0, 3) + "****" + digits.slice(-4);
   }
   return value;
 }
@@ -32,7 +24,6 @@ function maskIdentifier(mode: Mode, value: string): string {
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("identify");
-  const [mode, setMode] = useState<Mode>("phone");
   const [identifier, setIdentifier] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -55,18 +46,14 @@ export default function ForgotPasswordPage() {
   };
 
   const handleSendCode = async () => {
-    if (mode === "phone" && !identifier) {
+    if (!identifier) {
       toast.error("请输入手机号");
-      return;
-    }
-    if (mode === "email" && !identifier) {
-      toast.error("请输入邮箱");
       return;
     }
     setLoading(true);
     try {
       const auth = getAuth();
-      const value = mode === "phone" ? formatPhone(identifier) : identifier;
+      const value = formatPhone(identifier);
       const { data, error } = await auth.resetPasswordForEmail(value);
       if (error) {
         toast.error(getAuthErrorMessage(error));
@@ -147,42 +134,17 @@ export default function ForgotPasswordPage() {
               </span>
             </div>
 
-            {/* ===== Step 1: 输入手机号/邮箱 ===== */}
+            {/* ===== Step 1: 输入手机号 ===== */}
             {step === "identify" && (
               <>
                 <p className="text-center text-sm text-gray-500 -mt-2">
                   重置密码
                 </p>
 
-                <div className="flex rounded-xl bg-gray-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => { setMode("phone"); setIdentifier(""); }}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                      mode === "phone"
-                        ? "bg-white text-brand shadow-sm"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    手机号
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMode("email"); setIdentifier(""); }}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                      mode === "email"
-                        ? "bg-white text-brand shadow-sm"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    邮箱
-                  </button>
-                </div>
-
                 <div className="flex gap-2">
                   <Input
-                    type={mode === "phone" ? "tel" : "email"}
-                    placeholder={mode === "phone" ? "请输入手机号" : "请输入邮箱"}
+                    type="tel"
+                    placeholder="请输入手机号"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     className="h-11 flex-1 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"
@@ -213,7 +175,7 @@ export default function ForgotPasswordPage() {
             {step === "reset" && (
               <>
                 <p className="text-center text-sm text-gray-500 -mt-2">
-                  验证码已发送至 {maskIdentifier(mode, identifier)}
+                  验证码已发送至 {maskPhone(identifier)}
                 </p>
 
                 <form onSubmit={handleResetPassword} className="flex flex-col gap-4">

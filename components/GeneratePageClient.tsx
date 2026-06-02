@@ -22,6 +22,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import RedeemDialog from "@/components/RedeemDialog";
+import { useCreditBalance } from "@/hooks/useCreditBalance";
 import { models, ASPECT_RATIOS, getPixelSize } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import { useGenerateState } from "@/lib/use-generate-state";
@@ -89,18 +91,8 @@ export default function GeneratePageClient({
   const [refHover, setRefHover] = useState(false);
 
   // 额度相关
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [redeemKey, setRedeemKey] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
+  const { balance: creditBalance, setBalance: setCreditBalance } = useCreditBalance();
   const [showRedeemDialog, setShowRedeemDialog] = useState(false);
-
-  // 获取额度余额
-  useEffect(() => {
-    fetch("/api/credits/balance")
-      .then((r) => r.json())
-      .then((data) => setCreditBalance(data.balance))
-      .catch(() => {});
-  }, []);
 
   // Track content appearance for lift animation
   useEffect(() => {
@@ -216,37 +208,6 @@ export default function GeneratePageClient({
       window.location.href = "/login";
     }
   }, []);
-
-  async function handleRedeemKey() {
-    if (!redeemKey.trim()) {
-      toast.error("请输入密钥");
-      return;
-    }
-
-    setRedeeming(true);
-    try {
-      const res = await fetch("/api/credits/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: redeemKey.trim() }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success(`兑换成功！获得 ${data.credits_added} 额度`);
-        setCreditBalance(data.balance);
-        setRedeemKey("");
-        setShowRedeemDialog(false);
-      } else {
-        toast.error(data.error || "兑换失败");
-      }
-    } catch {
-      toast.error("兑换失败，请重试");
-    } finally {
-      setRedeeming(false);
-    }
-  }
 
   const currentModel = models.find((m) => m.id === model);
   const supportedRatios = currentModel?.supportedAspectRatios || ["1:1"];
@@ -774,39 +735,10 @@ export default function GeneratePageClient({
       </Dialog>
 
       {/* 兑换额度对话框 */}
-      <Dialog open={showRedeemDialog} onOpenChange={(open) => { if (!open) setShowRedeemDialog(false); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>兑换额度</DialogTitle>
-            <DialogDescription>输入密钥以兑换生成额度</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">密钥</label>
-              <input
-                type="text"
-                value={redeemKey}
-                onChange={(e) => setRedeemKey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleRedeemKey()}
-                placeholder="输入 64 位密钥"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
-              />
-            </div>
-            {creditBalance !== null && (
-              <p className="text-xs text-gray-500">
-                当前余额: <span className="font-medium text-gray-700">{creditBalance}</span> 额度
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="rounded-full" onClick={() => setShowRedeemDialog(false)}>取消</Button>
-            <Button className="rounded-full" onClick={handleRedeemKey} disabled={redeeming || !redeemKey.trim()}>
-              {redeeming ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : null}
-              兑换
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RedeemDialog
+        open={showRedeemDialog}
+        onOpenChange={setShowRedeemDialog}
+      />
 
       {previewImage && <ImageViewer src={toProxyUrl(previewImage)} alt="预览" onClose={() => setPreviewImage(null)} />}
       {referenceViewerImage && <ImageViewer src={referenceViewerImage} alt="参考图" onClose={() => setReferenceViewerImage(null)} />}

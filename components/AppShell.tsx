@@ -9,6 +9,7 @@ import BottomNav from "@/components/BottomNav";
 import ScrollToTop from "@/components/ScrollToTop";
 import { useNotifications } from "@/hooks/useNotifications";
 import AnnouncementModal from "@/components/AnnouncementModal";
+import { CreditProvider } from "@/hooks/useCreditBalance";
 
 // 模块级 profile 请求去重：5 分钟内不重复请求
 const PROFILE_CACHE_TTL = 5 * 60 * 1000;
@@ -209,28 +210,30 @@ export default function AppShell({ children }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      <Sidebar
-        user={user}
-        authChecked={authChecked}
-        unreadCount={unreadCount}
-        notifications={notifications}
-        notificationsLoading={notificationsLoading}
-        fetchNotifications={fetchNotifications}
-        markRead={markRead}
-        markAllRead={markAllRead}
-        deleteNotification={deleteNotification}
-      />
-      <main className="md:ml-16 h-screen overflow-y-auto overscroll-contain pb-16 md:pb-0">{children}</main>
-      <BottomNav user={user} authChecked={authChecked} unreadCount={unreadCount} />
-      <ScrollToTop />
-
-      {announcements.length > 0 && (
-        <AnnouncementModal
-          announcements={announcements}
-          onClose={handleDismissAnnouncement}
+    <CreditProvider>
+      <div className="min-h-screen bg-gray-50/50">
+        <Sidebar
+          user={user}
+          authChecked={authChecked}
+          unreadCount={unreadCount}
+          notifications={notifications}
+          notificationsLoading={notificationsLoading}
+          fetchNotifications={fetchNotifications}
+          markRead={markRead}
+          markAllRead={markAllRead}
+          deleteNotification={deleteNotification}
         />
-      )}
-    </div>
+        <main className="md:ml-16 h-screen overflow-y-auto overscroll-contain pb-16 md:pb-0">{children}</main>
+        <BottomNav user={user} authChecked={authChecked} unreadCount={unreadCount} />
+        <ScrollToTop />
+
+        {announcements.length > 0 && (
+          <AnnouncementModal
+            announcements={announcements}
+            onClose={handleDismissAnnouncement}
+          />
+        )}
+      </div>
+    </CreditProvider>
   );
 }
