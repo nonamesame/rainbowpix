@@ -1,11 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Users, Image, Send, Bell, ArrowLeft, Trash2, Upload, Plus, Key, Copy, Check } from "lucide-react";
+import { Users, ImageIcon, Send, Bell, ArrowLeft, Trash2, Upload, Plus, Key, Copy, Check } from "lucide-react";
 import toast from "react-hot-toast";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Stats {
   totalUsers: number;
@@ -78,10 +87,28 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   // 用于防止竞态条件的请求ID
   const keyListRequestIdRef = useRef(0);
 
+  // 虚构作者管理
+  const [authors, setAuthors] = useState<any[]>([]);
+  const [loadingAuthors, setLoadingAuthors] = useState(false);
+  const [editingAuthorUid, setEditingAuthorUid] = useState<string | null>(null);
+  const [editingAuthorName, setEditingAuthorName] = useState("");
+  const [editingAuthorAvatar, setEditingAuthorAvatar] = useState("");
+  const [editingAuthorBio, setEditingAuthorBio] = useState("");
+  const [updatingAuthor, setUpdatingAuthor] = useState(false);
+
+  // 头像裁剪
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const authorAvatarInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetchData();
     fetchInspirationItems();
     fetchKeyList();
+    fetchAuthors();
   }, []);
 
   useEffect(() => {
@@ -485,6 +512,138 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
     setTimeout(() => setCopiedKeyIndex(null), 1500);
   }
 
+  // 虚构作者管理函数
+  async function fetchAuthors() {
+    setLoadingAuthors(true);
+    try {
+      const res = await fetch("/api/admin/authors", {
+        headers: { "x-admin-key": adminKey },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAuthors(data.authors);
+      }
+    } catch {
+      toast.error("获取作者列表失败");
+    } finally {
+      setLoadingAuthors(false);
+    }
+  }
+
+  async function handleUpdateAuthor(uid: string) {
+    if (!editingAuthorName.trim()) {
+      toast.error("作者名称不能为空");
+      return;
+    }
+
+    setUpdatingAuthor(true);
+    try {
+      const res = await fetch("/api/admin/authors", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          uid,
+          username: editingAuthorName.trim(),
+          avatar_url: editingAuthorAvatar.trim(),
+          bio: editingAuthorBio.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("作者信息已更新");
+        setEditingAuthorUid(null);
+        fetchAuthors();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "更新失败");
+      }
+    } catch {
+      toast.error("更新失败");
+    } finally {
+      setUpdatingAuthor(false);
+    }
+  }
+
+  function handleAuthorAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("图片大小不能超过 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("无法创建画布"));
+        ctx.drawImage(
+          image,
+          pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
+          0, 0, pixelCrop.width, pixelCrop.height,
+        );
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("裁剪失败"));
+        }, "image/jpeg", 0.9);
+      };
+      image.onerror = () => reject(new Error("图片加载失败"));
+      image.src = imageSrc;
+    });
+  }
+
+  async function handleCropConfirm() {
+    if (!cropImage || !croppedAreaPixels || !editingAuthorUid) return;
+    setUploadingAvatar(true);
+    try {
+      const blob = await getCroppedImg(cropImage, croppedAreaPixels);
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("uid", editingAuthorUid);
+
+      const res = await fetch("/api/admin/authors/avatar", {
+        method: "POST",
+        headers: { "x-admin-key": adminKey },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setEditingAuthorAvatar(data.avatar_url);
+        toast.success("头像上传成功");
+        setCropImage(null);
+        fetchAuthors();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "上传失败");
+      }
+    } catch {
+      toast.error("上传失败");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -528,7 +687,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">总生成数</CardTitle>
-              <Image className="size-4 text-brand" />
+              <ImageIcon className="size-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats?.totalGenerations ?? 0}</div>
@@ -548,7 +707,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">今日生成数</CardTitle>
-              <Image className="size-4 text-green-500" />
+              <ImageIcon className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats?.todayGenerations ?? 0}</div>
@@ -821,7 +980,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Image className="size-5" />
+                <ImageIcon className="size-5" />
                 已发布的灵感 ({inspirationItems.length})
               </CardTitle>
             </CardHeader>
@@ -975,7 +1134,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Image className="size-5" />
+                <ImageIcon className="size-5" />
                 密钥列表 ({keyListTotal})
               </CardTitle>
             </CardHeader>
@@ -1090,6 +1249,198 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
             </CardContent>
           </Card>
         </div>
+
+        {/* 虚构作者管理 */}
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="size-5" />
+                虚构作者管理 ({authors.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAuthors ? (
+                <div className="py-8 text-center text-gray-400">加载中...</div>
+              ) : authors.length === 0 ? (
+                <div className="py-8 text-center text-gray-400">暂无虚构作者</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {authors.map((author) => (
+                    <div
+                      key={author.uid}
+                      className="rounded-lg border border-gray-200 p-4"
+                    >
+                      {editingAuthorUid === author.uid ? (
+                        /* Edit mode */
+                        <div className="space-y-3">
+                          <div className="flex flex-col items-center gap-2">
+                            <img
+                              src={editingAuthorAvatar || author.avatar_url}
+                              alt={author.username}
+                              className="size-16 rounded-full object-cover"
+                            />
+                            <input
+                              ref={authorAvatarInputRef}
+                              type="file"
+                              accept="image/jpeg,image/png,image/gif,image/webp"
+                              onChange={handleAuthorAvatarUpload}
+                              className="hidden"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => authorAvatarInputRef.current?.click()}
+                              disabled={uploadingAvatar}
+                              className="text-xs"
+                            >
+                              <Upload className="mr-1 size-3" />
+                              {uploadingAvatar ? "上传中..." : "上传头像"}
+                            </Button>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">名称</label>
+                            <Input
+                              value={editingAuthorName}
+                              onChange={(e) => setEditingAuthorName(e.target.value)}
+                              placeholder="输入作者名称"
+                              className="text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-gray-600">简介</label>
+                            <Input
+                              value={editingAuthorBio}
+                              onChange={(e) => setEditingAuthorBio(e.target.value)}
+                              placeholder="输入作者简介"
+                              className="text-xs"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateAuthor(author.uid)}
+                              disabled={updatingAuthor}
+                              className="flex-1 bg-brand hover:bg-brand-dark"
+                            >
+                              {updatingAuthor ? "保存中..." : "保存"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingAuthorUid(null)}
+                              className="flex-1"
+                            >
+                              取消
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* View mode */
+                        <div className="text-center">
+                          <img
+                            src={author.avatar_url}
+                            alt={author.username}
+                            className="mx-auto mb-2 size-16 rounded-full object-cover"
+                          />
+                          <h3 className="text-sm font-medium text-gray-900">{author.username}</h3>
+                          <p className="mt-1 text-xs text-gray-500">{author.bio}</p>
+                          <p className="mt-1 text-xs text-gray-400">{author.works_count} 篇作品</p>
+                          <div className="mt-3 flex gap-2">
+                            <Link
+                              href={`/profile/${author.uid}`}
+                              target="_blank"
+                              className="flex-1"
+                            >
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full"
+                              >
+                                查看主页
+                              </Button>
+                            </Link>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => {
+                                setEditingAuthorUid(author.uid);
+                                setEditingAuthorName(author.username);
+                                setEditingAuthorAvatar(author.avatar_url);
+                                setEditingAuthorBio(author.bio || "");
+                              }}
+                            >
+                              编辑
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 头像裁剪对话框 */}
+        <Dialog open={!!cropImage} onOpenChange={(open) => { if (!open) setCropImage(null); }}>
+          <DialogContent className="sm:max-w-sm rounded-2xl p-0 overflow-hidden border-0 shadow-2xl" showCloseButton={false}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <DialogTitle className="text-base font-semibold">调整头像</DialogTitle>
+              <button onClick={() => setCropImage(null)} className="rounded-full p-1.5 hover:bg-gray-100 transition-colors">
+                <span className="sr-only">关闭</span>
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="relative mx-4 h-[320px] overflow-hidden rounded-xl bg-gray-100 select-none">
+              {cropImage && (
+                <Cropper
+                  image={cropImage}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="round"
+                  restrictPosition={false}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_croppedArea, croppedAreaPixels) => setCroppedAreaPixels(croppedAreaPixels)}
+                  style={{
+                    cropAreaStyle: {
+                      border: "2.5px solid rgba(255,255,255,0.9)",
+                      borderRadius: "50%",
+                      boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+                    },
+                  }}
+                />
+              )}
+            </div>
+            <div className="px-5 pb-5 pt-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <svg className="size-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full accent-brand h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer"
+                />
+                <svg className="size-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setCropImage(null)} className="flex-1 rounded-xl">
+                  取消
+                </Button>
+                <Button onClick={handleCropConfirm} disabled={uploadingAvatar} className="flex-1 rounded-xl bg-brand hover:bg-brand-dark">
+                  {uploadingAvatar ? "上传中..." : "确认"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
