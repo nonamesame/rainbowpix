@@ -133,7 +133,10 @@
       "Bash(git check-ignore *)",
       "Bash(openssl rand *)",
       "Bash(python -c ' *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(npx playwright *)",
+      "Bash(grep -oP '\\(https?://[^\"'\\\\''`]+api[^\"'\\\\''`]*|/api/[^\"'\\\\''`]+\\)')",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(json.dumps\\(data[0].keys\\(\\) if isinstance\\(data, list\\) else list\\(data.keys\\(\\)\\), indent=2\\)\\)\")"
     ]
   }
 }
