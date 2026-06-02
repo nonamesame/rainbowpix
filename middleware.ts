@@ -17,6 +17,7 @@ const RATE_LIMITS: Record<string, [number, number]> = {
   "/api/credits/redeem": [5, 60_000], // 5 requests per minute
   "/api/credits/balance": [30, 60_000], // 30 requests per minute
   "/api/auth/session": [10, 60_000], // 10 requests per minute
+  "/api/inspiration": [120, 60_000], // 120 per minute (infinite scroll loads many pages)
   // Admin endpoints: stricter limits to prevent brute force
   "/api/admin/stats": [10, 60_000], // 10 per minute (used for key verification)
   "/api/admin/": [30, 60_000], // 30 per minute for admin operations

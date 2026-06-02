@@ -131,7 +131,9 @@
       "Bash(grep -oP '.{0,50}NEXT_PUBLIC_TCB_ENV_ID.{0,50}')",
       "Bash(grep -oE '.{0,80}NEXT_PUBLIC_TCB_ENV_ID.{0,80}')",
       "Bash(git check-ignore *)",
-      "Bash(openssl rand *)"
+      "Bash(openssl rand *)",
+      "Bash(python -c ' *)",
+      "Bash(python *)"
     ]
   }
 }

@@ -367,17 +367,25 @@ export default function InspirationDetailClient({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/profile/${item.user_id}`}
-                      target="_blank"
-                      className="block truncate text-sm font-medium text-gray-800 hover:text-brand transition-colors"
-                    >
-                      {item.username || "匿名用户"}
-                    </Link>
-                    {authorStats && (
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        {authorStats.published_count} 个作品 · {authorStats.total_likes} 赞
-                      </p>
+                    {item.user_id?.startsWith("anonymous_seed") ? (
+                      <span className="block truncate text-sm font-medium text-gray-800">
+                        匿名用户
+                      </span>
+                    ) : (
+                      <>
+                        <Link
+                          href={`/profile/${item.user_id}`}
+                          target="_blank"
+                          className="block truncate text-sm font-medium text-gray-800 hover:text-brand transition-colors"
+                        >
+                          {item.username || "匿名用户"}
+                        </Link>
+                        {authorStats && (
+                          <p className="mt-0.5 text-xs text-gray-400">
+                            {authorStats.published_count} 个作品 · {authorStats.total_likes} 赞
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
