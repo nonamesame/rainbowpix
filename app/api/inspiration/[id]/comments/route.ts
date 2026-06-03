@@ -60,7 +60,7 @@ export async function GET(
         .get();
       const userMap = new Map((users || []).map((u: any) => [u.uid, u]));
       items = items.map((item: any) => {
-        const user = userMap.get(item.user_id);
+        const user = userMap.get(item.user_id) as any;
         if (user) {
           return {
             ...item,
