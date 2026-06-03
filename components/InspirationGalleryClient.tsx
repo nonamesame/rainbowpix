@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { toProxyUrl } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 
+// 延迟加载图片的占位符
+const PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23f3f4f6' width='200' height='150'/%3E%3Cpath d='M80 65 L100 45 L120 65 L140 50 L160 65 L160 100 L40 100 L40 65 Z' fill='%23d1d5db'/%3E%3Ccircle cx='70' cy='55' r='10' fill='%23d1d5db'/%3E%3C/svg%3E";
+
 interface Props {
   initialItems: InspirationItem[];
   total: number;
@@ -95,6 +98,7 @@ export default function InspirationGalleryClient({
 
   const [items, setItems] = useState<InspirationItem[]>(modItems);
   const [loading, setLoading] = useState(modItems.length === 0);
+  const [imageLoadStatus, setImageLoadStatus] = useState<Map<string, 'loading' | 'loaded' | 'error'>>(new Map());
 
   // Persist lightweight fingerprint to sessionStorage (page count + first item ID)
   useEffect(() => {
@@ -234,28 +238,11 @@ export default function InspirationGalleryClient({
   const positionsRef = useRef<Map<string, CardPos>>(new Map());
   const [positions, setPositions] = useState<Map<string, CardPos>>(new Map());
   const [containerHeight, setContainerHeight] = useState(0);
-  const renderedIdsRef = useRef<Set<string>>(new Set());
 
-  // Ref callback: sync position into ref, batch state update at end of render
-  const cardRefCallback = useCallback((id: string, el: HTMLDivElement | null) => {
-    if (!el) {
-      cardRefs.current.delete(id);
-      return;
-    }
-    cardRefs.current.set(id, el);
-
-    // Skip if we already calculated positions for this item set
-    if (renderedIdsRef.current.has(id)) return;
-
+  // 统一的布局计算函数
+  const recalculateLayout = useCallback(() => {
     const container = containerRef.current;
-    if (!container) return;
-
-    // Check if ALL items have refs
-    const allReady = items.every((it) => cardRefs.current.has(it._id));
-    if (!allReady) return;
-
-    // Mark as rendered so we don't recalculate on every ref callback
-    items.forEach((it) => renderedIdsRef.current.add(it._id));
+    if (!container || items.length === 0) return;
 
     const containerWidth = container.offsetWidth;
     const cols = getColumnCount(containerWidth);
@@ -270,7 +257,7 @@ export default function InspirationGalleryClient({
         if (colHeights[c] < colHeights[minCol]) minCol = c;
       }
       const el = cardRefs.current.get(item._id);
-      const height = el?.offsetHeight || 0;
+      const height = el?.offsetHeight || 200; // 默认高度 200px
       const left = minCol * (colWidth + gap);
       const top = colHeights[minCol];
       newPositions.set(item._id, { top, left, width: colWidth, height });
@@ -278,102 +265,66 @@ export default function InspirationGalleryClient({
     }
 
     positionsRef.current = newPositions;
-    // Batch: set positions + height in one render
     setPositions(new Map(newPositions));
     setContainerHeight(Math.max(...colHeights, 0));
   }, [items]);
 
-  // Reset refs when items change so positions are recalculated.
-  // Must happen during render (not in effect) because ref callbacks fire
-  // during commit phase BEFORE effects — if we clear in effect, ref callbacks
-  // already ran with stale refs and skipped position calculation.
-  const prevItemsRef = useRef(items);
-  if (prevItemsRef.current !== items) {
-    prevItemsRef.current = items;
-    renderedIdsRef.current.clear();
+  // Ref callback: sync position into ref
+  const cardRefCallback = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (!el) {
+      cardRefs.current.delete(id);
+      return;
+    }
+    cardRefs.current.set(id, el);
+    // 每次有新的 ref 就重新计算布局
+    requestAnimationFrame(() => recalculateLayout());
+  }, [recalculateLayout]);
+
+  // 当 items 变化时，清空 refs 并重新计算
+  useEffect(() => {
     cardRefs.current.clear();
-  }
+    // 等待 DOM 更新后重新计算
+    const timer = setTimeout(() => recalculateLayout(), 0);
+    return () => clearTimeout(timer);
+  }, [items, recalculateLayout]);
 
   // ResizeObserver — recalculate on container resize
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const ro = new ResizeObserver(() => {
-      const containerWidth = container.offsetWidth;
-      const cols = getColumnCount(containerWidth);
-      const gap = getGap(containerWidth);
-      const colWidth = (containerWidth - gap * (cols - 1)) / cols;
-      const colHeights = new Array(cols).fill(0);
-      const newPositions = new Map<string, CardPos>();
-
-      for (const item of items) {
-        let minCol = 0;
-        for (let c = 1; c < cols; c++) {
-          if (colHeights[c] < colHeights[minCol]) minCol = c;
-        }
-        const el = cardRefs.current.get(item._id);
-        const height = el?.offsetHeight || 0;
-        const left = minCol * (colWidth + gap);
-        const top = colHeights[minCol];
-        newPositions.set(item._id, { top, left, width: colWidth, height });
-        colHeights[minCol] = top + height + gap;
-      }
-
-      positionsRef.current = newPositions;
-      setPositions(new Map(newPositions));
-      setContainerHeight(Math.max(...colHeights, 0));
+      recalculateLayout();
     });
     ro.observe(container);
     return () => ro.disconnect();
-  }, [items]);
+  }, [recalculateLayout]);
 
   // Recalculate when images finish loading
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    // 监听所有图片的 load 和 error 事件
     const images = container.querySelectorAll("img");
-    const pending = { count: 0 };
-    const recalc = () => {
-      const containerWidth = container.offsetWidth;
-      const cols = getColumnCount(containerWidth);
-      const gap = getGap(containerWidth);
-      const colWidth = (containerWidth - gap * (cols - 1)) / cols;
-      const colHeights = new Array(cols).fill(0);
-      const newPositions = new Map<string, CardPos>();
-      for (const item of items) {
-        let minCol = 0;
-        for (let c = 1; c < cols; c++) {
-          if (colHeights[c] < colHeights[minCol]) minCol = c;
-        }
-        const el = cardRefs.current.get(item._id);
-        const height = el?.offsetHeight || 0;
-        const left = minCol * (colWidth + gap);
-        const top = colHeights[minCol];
-        newPositions.set(item._id, { top, left, width: colWidth, height });
-        colHeights[minCol] = top + height + gap;
-      }
-      positionsRef.current = newPositions;
-      setPositions(new Map(newPositions));
-      setContainerHeight(Math.max(...colHeights, 0));
-    };
-    const onLoad = () => {
-      pending.count--;
-      if (pending.count <= 0) recalc();
-    };
+    const handlers: Array<{ img: HTMLImageElement; handler: () => void }> = [];
+
     images.forEach((img) => {
-      if (!(img as HTMLImageElement).complete) {
-        pending.count++;
-        img.addEventListener("load", onLoad, { once: true });
-        img.addEventListener("error", onLoad, { once: true });
+      const imgEl = img as HTMLImageElement;
+      if (!imgEl.complete) {
+        const handler = () => recalculateLayout();
+        imgEl.addEventListener("load", handler, { once: true });
+        imgEl.addEventListener("error", handler, { once: true });
+        handlers.push({ img: imgEl, handler });
       }
     });
+
     return () => {
-      images.forEach((img) => {
-        img.removeEventListener("load", onLoad);
-        img.removeEventListener("error", onLoad);
+      handlers.forEach(({ img, handler }) => {
+        img.removeEventListener("load", handler);
+        img.removeEventListener("error", handler);
       });
     };
-  }, [items]);
+  }, [items, recalculateLayout]);
 
   // Real-time poll: refresh page 1 periodically so new publications appear immediately.
   // Only runs when user hasn't scrolled past page 1 (avoids resetting loaded items).
@@ -656,12 +607,13 @@ export default function InspirationGalleryClient({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !loadingRef.current) {
-          // Debounce: wait 200ms after becoming visible before loading
+          // Debounce: wait 300ms after becoming visible before loading
+          // 稍微增加延迟，避免快速滚动时频繁加载
           if (timer) clearTimeout(timer);
-          timer = setTimeout(() => loadMore(), 200);
+          timer = setTimeout(() => loadMore(), 300);
         }
       },
-      { root: document.querySelector("main"), rootMargin: "600px" }
+      { root: document.querySelector("main"), rootMargin: "400px" }
     );
     observer.observe(el);
     return () => {
@@ -717,7 +669,7 @@ export default function InspirationGalleryClient({
                   }}
                   data-card
                   data-item-id={item._id}
-                  className={`absolute cursor-pointer${newItemIds.has(item._id) ? " animate-fadein" : ""}`}
+                  className="absolute cursor-pointer animate-fadein"
                   style={pos ? {
                     top: pos.top,
                     left: pos.left,
@@ -726,16 +678,31 @@ export default function InspirationGalleryClient({
                   } : { visibility: "hidden" }}
                 >
                   <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                    {/* 图片加载状态指示器 */}
+                    {imageLoadStatus.get(item._id) !== 'loaded' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                        <Loader2 className="size-6 animate-spin text-gray-300" />
+                      </div>
+                    )}
                     <img
                       src={toProxyUrl(item.image_url)}
                       alt={item.prompt}
                       loading="lazy"
                       decoding="async"
-                      className="w-full block object-cover"
+                      className={`w-full block object-cover ${
+                        imageLoadStatus.get(item._id) === 'loaded' ? 'animate-image-fadein' : 'opacity-0'
+                      }`}
                       style={item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : undefined}
+                      onLoad={() => {
+                        setImageLoadStatus(prev => new Map(prev).set(item._id, 'loaded'));
+                        // 图片加载完成后重新计算布局
+                        requestAnimationFrame(() => recalculateLayout());
+                      }}
                       onError={(e) => {
+                        setImageLoadStatus(prev => new Map(prev).set(item._id, 'error'));
+                        // 使用更好的错误占位符
                         (e.target as HTMLImageElement).src =
-                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='54' text-anchor='middle' fill='%239ca3af' font-size='14'%3E无图%3C/text%3E%3C/svg%3E";
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23fef2f2' width='200' height='150'/%3E%3Cpath d='M80 65 L100 45 L120 65 L140 50 L160 65 L160 100 L40 100 L40 65 Z' fill='%23fca5a5'/%3E%3Ccircle cx='70' cy='55' r='10' fill='%23fca5a5'/%3E%3Ctext x='100' y='120' text-anchor='middle' fill='%23dc2626' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E";
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />

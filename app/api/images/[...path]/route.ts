@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import app from "@/lib/cloudbase/server";
-import axios from "axios";
 
 // 服务端缓存 getTempFileURL 结果，避免同一文件重复请求 CloudBase
 // CloudBase 临时链接有效期通常 15 分钟，我们缓存 10 分钟
@@ -26,7 +25,7 @@ function setCachedTempUrl(fileID: string, url: string) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: segments } = await params;
@@ -54,19 +53,9 @@ export async function GET(
       setCachedTempUrl(fileID, downloadUrl);
     }
 
-    const imgResponse = await axios.get(downloadUrl, { responseType: "arraybuffer" });
-    const buffer = Buffer.from(imgResponse.data);
-
-    const ext = fileID.split(".").pop()?.toLowerCase() || "png";
-    const contentType =
-      { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" }[ext] || "image/png";
-
-    return new Response(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, s-maxage=604800",
-      },
-    });
+    // 直接返回 302 重定向到临时 URL，让客户端直接从 CloudBase 加载
+    // 这样避免服务端代理整个图片，大幅提升加载速度
+    return Response.redirect(downloadUrl, 302);
   } catch (error) {
     console.error("[image-proxy] error:", error);
     return Response.json({ error: "Image not found" }, { status: 404 });
