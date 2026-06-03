@@ -85,6 +85,41 @@ export async function POST(request: NextRequest) {
       // Profile collection might not exist, that's OK
     }
 
+    // 记录日活：写入 user_daily_logins 集合（幂等，同一用户同一天只记一条）
+    try {
+      const { serverDb } = await import("@/lib/cloudbase/server");
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(now);
+      const g = (t: string) => parts.find((x) => x.type === t)!.value;
+      const todayDate = `${g("year")}-${g("month")}-${g("day")}`;
+      const todayStart = new Date(`${todayDate}T00:00:00+08:00`).toISOString();
+
+      // 检查今天是否已记录过
+      const { total } = await serverDb
+        .collection("user_daily_logins")
+        .where({
+          user_id: uid,
+          date: { $gte: todayStart },
+        })
+        .count();
+
+      if (total === 0) {
+        await serverDb.collection("user_daily_logins").add({
+          user_id: uid,
+          date: now.toISOString(),
+          created_at: now.toISOString(),
+        });
+      }
+    } catch (err) {
+      // 日活记录失败不影响登录流程
+      console.error("[session] Failed to record daily login:", err);
+    }
+
     // Create HMAC-signed cookie
     const signedCookie = signUserPayload({
       uid,

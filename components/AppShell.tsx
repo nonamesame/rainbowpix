@@ -3,6 +3,7 @@
 import { decodeUserCookie } from "@/lib/utils";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
+import toast from "react-hot-toast";
 import { TcbUser } from "@/lib/cloudbase/types";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
@@ -39,6 +40,21 @@ export default function AppShell({ children }: Props) {
     unreadCount, notifications, loading: notificationsLoading,
     fetchNotifications, markRead, markAllRead, deleteNotification,
   } = useNotifications(user?.uid || null);
+
+  // 任务状态
+  const [hasUnclaimedTasks, setHasUnclaimedTasks] = useState(false);
+  const [taskCheckDone, setTaskCheckDone] = useState(false);
+
+  // 刷新任务状态
+  const refreshTaskStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tasks/status");
+      if (res.ok) {
+        const data = await res.json();
+        setHasUnclaimedTasks(data.hasUnclaimedTasks);
+      }
+    } catch {}
+  }, []);
 
   // Read user from cookie, optionally preserving existing state or waiting for API
   const readUserFromCookie = useCallback((opts?: { preserveExisting?: boolean; waitForApi?: boolean; skipApi?: boolean }) => {
@@ -137,6 +153,27 @@ export default function AppShell({ children }: Props) {
     }
   }, [pathname, readUserFromCookie]);
 
+  // 自动签到 + 获取任务状态（用户登录后执行一次）
+  const checkinDone = useRef(false);
+  useEffect(() => {
+    if (!user || checkinDone.current || !authChecked) return;
+    checkinDone.current = true;
+
+    // 自动签到
+    fetch("/api/tasks/checkin", { method: "POST" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          toast.success("签到成功，获得1额度");
+        }
+        // 无论是否新签到，都刷新任务状态
+        refreshTaskStatus().then(() => setTaskCheckDone(true));
+      })
+      .catch(() => {
+        setTaskCheckDone(true);
+      });
+  }, [user, authChecked, refreshTaskStatus]);
+
   // Event listeners: focus, cross-tab updates
   useEffect(() => {
     function onMessage(e: MessageEvent) {
@@ -159,6 +196,15 @@ export default function AppShell({ children }: Props) {
       window.removeEventListener("focus", onFocus);
     };
   }, [readUserFromCookie]);
+
+  // 监听任务相关操作（点赞/评论/发布），刷新任务状态
+  useEffect(() => {
+    function onTaskAction() {
+      refreshTaskStatus();
+    }
+    window.addEventListener("task-action", onTaskAction);
+    return () => window.removeEventListener("task-action", onTaskAction);
+  }, [refreshTaskStatus]);
 
   const isStandalone = STANDALONE_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
@@ -222,9 +268,17 @@ export default function AppShell({ children }: Props) {
           markRead={markRead}
           markAllRead={markAllRead}
           deleteNotification={deleteNotification}
+          hasUnclaimedTasks={hasUnclaimedTasks}
+          refreshTaskStatus={refreshTaskStatus}
         />
         <main className="md:ml-16 h-screen overflow-y-auto overscroll-contain pb-16 md:pb-0">{children}</main>
-        <BottomNav user={user} authChecked={authChecked} unreadCount={unreadCount} />
+        <BottomNav
+          user={user}
+          authChecked={authChecked}
+          unreadCount={unreadCount}
+          hasUnclaimedTasks={hasUnclaimedTasks}
+          refreshTaskStatus={refreshTaskStatus}
+        />
         <ScrollToTop />
 
         {announcements.length > 0 && (

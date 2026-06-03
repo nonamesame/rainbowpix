@@ -32,8 +32,9 @@ export async function POST(
   };
 
   if (published) {
-    // When publishing, set username and watermark setting
+    // When publishing, set username, watermark setting, and published_at time
     updateFields.username = getDisplayName(user);
+    updateFields.published_at = new Date().toISOString();
     if (typeof watermark_enabled === "boolean") {
       updateFields.watermark_enabled = watermark_enabled;
     }

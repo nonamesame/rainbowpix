@@ -1,16 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, Paintbrush, ImageIcon, User } from "lucide-react";
+import { Sparkles, Paintbrush, ImageIcon, User, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
 import ThemeSwitcher from "./ThemeSwitcher";
+import TaskDialog from "./TaskDialog";
 
 interface Props {
   user: TcbUser | null;
   authChecked: boolean;
   unreadCount?: number;
+  hasUnclaimedTasks?: boolean;
+  refreshTaskStatus?: () => void;
 }
 
 const navItems = [
@@ -19,8 +23,9 @@ const navItems = [
   { href: "/gallery", label: "画廊", icon: ImageIcon, requireAuth: true },
 ];
 
-export default function BottomNav({ user, authChecked, unreadCount }: Props) {
+export default function BottomNav({ user, authChecked, unreadCount, hasUnclaimedTasks, refreshTaskStatus }: Props) {
   const pathname = usePathname();
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
 
   const myItem = user
     ? { href: "/profile", label: "我的", icon: User, target: "_blank" as const }
@@ -29,6 +34,7 @@ export default function BottomNav({ user, authChecked, unreadCount }: Props) {
   const allItems = [...navItems, myItem];
 
   return (
+    <>
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-gray-100 bg-white/95 backdrop-blur-md px-2 py-1 safe-area-bottom">
       <ThemeSwitcher />
       {allItems.map((item) => {
@@ -77,6 +83,26 @@ export default function BottomNav({ user, authChecked, unreadCount }: Props) {
           </Link>
         );
       })}
+      {/* 任务按钮 */}
+      {user && (
+        <button
+          onClick={() => setShowTaskDialog(true)}
+          className="relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors min-w-[56px] text-gray-400 hover:text-gray-600"
+        >
+          <Calendar className="size-5" />
+          <span className="font-medium">任务</span>
+          {hasUnclaimedTasks && (
+            <span className="absolute right-2 top-1 size-2 rounded-full bg-red-500" />
+          )}
+        </button>
+      )}
     </nav>
+
+    <TaskDialog
+      open={showTaskDialog}
+      onOpenChange={setShowTaskDialog}
+      onTasksChanged={refreshTaskStatus}
+    />
+    </>
   );
 }

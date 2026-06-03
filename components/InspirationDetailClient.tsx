@@ -137,6 +137,7 @@ export default function InspirationDetailClient({
       }
       setLiked(data.liked);
       setLikesCount(data.likes_count);
+      if (data.liked) window.dispatchEvent(new Event("task-action"));
     } catch {
       toast.error("操作失败");
     } finally {

@@ -85,6 +85,7 @@ export default function InspirationComments({
       setTotal(data.comments_count);
       onCountChange(data.comments_count);
       setContent("");
+      window.dispatchEvent(new Event("task-action"));
     } catch {
       toast.error("发送失败");
     } finally {

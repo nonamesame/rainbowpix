@@ -5,7 +5,16 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Users, ImageIcon, Send, Bell, ArrowLeft, Trash2, Upload, Plus, Key, Copy, Check } from "lucide-react";
+import { Users, ImageIcon, Send, Bell, ArrowLeft, Trash2, Upload, Plus, Key, Copy, Check, TrendingUp } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import toast from "react-hot-toast";
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
@@ -42,6 +51,10 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+
+  // 日活 & 兑换统计
+  const [dauData, setDauData] = useState<{ date: string; count: number }[]>([]);
+  const [todayRedeemedCredits, setTodayRedeemedCredits] = useState(0);
 
   // 通知表单
   const [title, setTitle] = useState("");
@@ -118,11 +131,14 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
   async function fetchData() {
     setLoading(true);
     try {
-      const [statsRes, notiRes] = await Promise.all([
+      const [statsRes, notiRes, dauRes] = await Promise.all([
         fetch("/api/admin/stats", {
           headers: { "x-admin-key": adminKey },
         }),
         fetch("/api/admin/notifications/list", {
+          headers: { "x-admin-key": adminKey },
+        }),
+        fetch("/api/admin/stats/dau", {
           headers: { "x-admin-key": adminKey },
         }),
       ]);
@@ -133,6 +149,11 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
       if (notiRes.ok) {
         const data = await notiRes.json();
         setNotifications(data.items);
+      }
+      if (dauRes.ok) {
+        const dauResult = await dauRes.json();
+        setDauData(dauResult.dau || []);
+        setTodayRedeemedCredits(dauResult.todayRedeemedCredits || 0);
       }
     } catch (error) {
       toast.error("获取数据失败");
@@ -673,7 +694,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
         </div>
 
         {/* 统计卡片 */}
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">总用户数</CardTitle>
@@ -713,7 +734,64 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
               <div className="text-3xl font-bold">{stats?.todayGenerations ?? 0}</div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">今日密钥兑换</CardTitle>
+              <Key className="size-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{todayRedeemedCredits}</div>
+              <p className="text-xs text-gray-500 mt-1">额度</p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* 日活折线图 */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="size-5" />
+              日活趋势（最近30天）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {dauData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dauData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(v) => v.slice(5)}
+                    tick={{ fontSize: 12 }}
+                    stroke="#9ca3af"
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 12 }}
+                    stroke="#9ca3af"
+                  />
+                  <Tooltip
+                    formatter={(value) => [value, "活跃用户"]}
+                    labelFormatter={(label) => `日期: ${label}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#6366f1" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-gray-500">
+                暂无数据
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* 发布公告 */}

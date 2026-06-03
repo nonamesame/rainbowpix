@@ -305,6 +305,7 @@ export default function ProfileClient({
       setSelected((prev) => (prev?._id === item._id ? { ...prev, published: true } : prev));
       setShowPublishDialog(false);
       toast.success("发布成功");
+      window.dispatchEvent(new Event("task-action"));
     } catch (e: any) {
       toast.error("发布失败，请稍后重试");
     } finally {

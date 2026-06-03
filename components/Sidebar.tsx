@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Sparkles, Paintbrush, ImageIcon, LogOut, Megaphone } from "lucide-react";
+import { Sparkles, Paintbrush, ImageIcon, LogOut, Megaphone, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TcbUser } from "@/lib/cloudbase/types";
 import { getAuth } from "@/lib/cloudbase/client";
@@ -13,6 +13,7 @@ import NotificationBell from "./NotificationBell";
 import AnnouncementModal from "./AnnouncementModal";
 import ThemeSwitcher from "./ThemeSwitcher";
 import RedeemDialog from "./RedeemDialog";
+import TaskDialog from "./TaskDialog";
 import { useCreditBalance } from "@/hooks/useCreditBalance";
 import type { Notification } from "@/lib/notifications";
 
@@ -26,6 +27,8 @@ interface Props {
   markRead: (ids: string[]) => void;
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
+  hasUnclaimedTasks: boolean;
+  refreshTaskStatus: () => void;
 }
 
 const navItems = [
@@ -45,6 +48,7 @@ interface Announcement {
 export default function Sidebar({
   user, authChecked, unreadCount, notifications, notificationsLoading,
   fetchNotifications, markRead, markAllRead, deleteNotification,
+  hasUnclaimedTasks, refreshTaskStatus,
 }: Props) {
   const pathname = usePathname();
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -54,6 +58,9 @@ export default function Sidebar({
   const { balance: creditBalance } = useCreditBalance();
   const [showRedeemDialog, setShowRedeemDialog] = useState(false);
   const [hoveringAvatar, setHoveringAvatar] = useState(false);
+
+  // 任务相关
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
 
   const fetchAnnouncements = useCallback(async () => {
     try {
@@ -121,29 +128,43 @@ export default function Sidebar({
       </div>
 
       {/* Bottom Section */}
-      <div className="flex flex-col items-center gap-3">
-        <ThemeSwitcher />
+      <div className="flex flex-col items-center gap-1">
+        <div className="flex h-10 w-12 items-center justify-center">
+          <ThemeSwitcher />
+        </div>
         {!authChecked ? null : user ? (
           <>
             <button
+              onClick={() => setShowTaskDialog(true)}
+              className="relative flex h-10 w-12 flex-col items-center justify-center gap-0.5 text-gray-400 transition-colors hover:text-brand"
+              title="每日任务"
+            >
+              <Calendar className="size-5" />
+              {hasUnclaimedTasks && (
+                <span className="absolute right-2 top-1 size-2 rounded-full bg-red-500" />
+              )}
+            </button>
+            <button
               onClick={fetchAnnouncements}
-              className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-brand"
+              className="flex h-10 w-12 flex-col items-center justify-center text-gray-400 transition-colors hover:text-brand"
               title="查看公告"
             >
               <Megaphone className="size-5" />
             </button>
-            <NotificationBell
-              user={user}
-              unreadCount={unreadCount}
-              notifications={notifications}
-              loading={notificationsLoading}
-              fetchNotifications={fetchNotifications}
-              markRead={markRead}
-              markAllRead={markAllRead}
-              deleteNotification={deleteNotification}
-            />
+            <div className="flex h-10 w-12 items-center justify-center">
+              <NotificationBell
+                user={user}
+                unreadCount={unreadCount}
+                notifications={notifications}
+                loading={notificationsLoading}
+                fetchNotifications={fetchNotifications}
+                markRead={markRead}
+                markAllRead={markAllRead}
+                deleteNotification={deleteNotification}
+              />
+            </div>
             <div
-              className="relative"
+              className="relative flex h-10 w-12 items-center justify-center"
               onMouseEnter={() => setHoveringAvatar(true)}
               onMouseLeave={() => setHoveringAvatar(false)}
             >
@@ -197,7 +218,7 @@ export default function Sidebar({
             </div>
             <button
               onClick={handleLogout}
-              className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-red-500"
+              className="flex h-10 w-12 flex-col items-center justify-center text-gray-400 transition-colors hover:text-red-500"
               title="退出登录"
             >
               <LogOut className="size-5" />
@@ -206,12 +227,11 @@ export default function Sidebar({
         ) : (
           <Link
             href="/login"
-            className="flex flex-col items-center gap-1 text-gray-400 transition-colors hover:text-brand"
+            className="flex h-10 w-12 flex-col items-center justify-center text-gray-400 transition-colors hover:text-brand"
           >
             <div className="flex size-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
               登
             </div>
-            <span className="text-[10px]">登录</span>
           </Link>
         )}
       </div>
@@ -228,6 +248,13 @@ export default function Sidebar({
       <RedeemDialog
         open={showRedeemDialog}
         onOpenChange={setShowRedeemDialog}
+      />
+
+      {/* 任务对话框 */}
+      <TaskDialog
+        open={showTaskDialog}
+        onOpenChange={setShowTaskDialog}
+        onTasksChanged={refreshTaskStatus}
       />
     </>
   );

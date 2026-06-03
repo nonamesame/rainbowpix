@@ -587,6 +587,7 @@ export default function InspirationGalleryClient({
         syncMod(next, modPage);
         return next;
       });
+      if (data.liked) window.dispatchEvent(new Event("task-action"));
     } catch {
       setItems((prev) => {
         const next = prev.map((it) =>

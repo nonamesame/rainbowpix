@@ -298,6 +298,52 @@ export async function deductCredits(
 }
 
 /**
+ * 增加用户额度（任务奖励、签到等）
+ */
+export async function addCredits(
+  userId: string,
+  amount: number
+): Promise<{ success: boolean; balance?: number; error?: string }> {
+  if (amount <= 0) return { success: true, balance: 0 };
+
+  try {
+    const { data } = await serverDb
+      .collection("user_credits")
+      .where({ user_id: userId })
+      .limit(1)
+      .get();
+
+    const doc = data?.[0];
+
+    if (doc) {
+      await serverDb.collection("user_credits").doc(doc._id).update({
+        balance: serverDb.command.inc(amount),
+        total_earned: serverDb.command.inc(amount),
+        updated_at: new Date().toISOString(),
+      });
+      return {
+        success: true,
+        balance: (doc.balance || 0) + amount,
+      };
+    } else {
+      const { id } = await serverDb.collection("user_credits").add({
+        user_id: userId,
+        balance: amount,
+        total_earned: amount,
+        total_used: 0,
+        updated_at: new Date().toISOString(),
+      });
+      return { success: true, balance: amount };
+    }
+  } catch (err: any) {
+    if (err?.message?.includes("Db or Table not exist")) {
+      return { success: false, error: "额度系统未初始化" };
+    }
+    throw err;
+  }
+}
+
+/**
  * 回滚额度（生成失败时补偿）
  */
 export async function refundCredits(
