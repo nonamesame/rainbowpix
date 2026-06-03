@@ -31,7 +31,10 @@ export async function GET(
   const { path: segments } = await params;
   const fileID = decodeURIComponent(segments.join("/"));
 
+  console.log("[image-proxy] request fileID:", fileID);
+
   if (!fileID) {
+    console.error("[image-proxy] empty fileID");
     return Response.json({ error: "Invalid path" }, { status: 400 });
   }
 
@@ -40,24 +43,28 @@ export async function GET(
     let downloadUrl: string | null = getCachedTempUrl(fileID);
 
     if (!downloadUrl) {
+      console.log("[image-proxy] fetching temp URL for:", fileID);
       const urlRes = await app.getTempFileURL({ fileList: [fileID] });
       const fileList = (urlRes as any).fileList || [];
       const item = fileList[0];
 
+      console.log("[image-proxy] CloudBase response:", JSON.stringify(item));
+
       if (!item || item.code !== "SUCCESS" || !item.download_url) {
         console.error("[image-proxy] getTempFileURL failed:", JSON.stringify(item));
-        return Response.json({ error: "Image not found" }, { status: 404 });
+        return Response.json({ error: "Image not found", detail: item }, { status: 404 });
       }
 
       downloadUrl = item.download_url as string;
       setCachedTempUrl(fileID, downloadUrl);
     }
 
+    console.log("[image-proxy] redirecting to:", downloadUrl);
     // 直接返回 302 重定向到临时 URL，让客户端直接从 CloudBase 加载
     // 这样避免服务端代理整个图片，大幅提升加载速度
     return Response.redirect(downloadUrl, 302);
   } catch (error) {
     console.error("[image-proxy] error:", error);
-    return Response.json({ error: "Image not found" }, { status: 404 });
+    return Response.json({ error: "Image not found" }, { status: 500 });
   }
 }
