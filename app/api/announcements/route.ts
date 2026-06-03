@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       .limit(20)
       .get();
 
-    const announcements = (result.data || []).map((a) => ({
+    const announcements = (result.data || []).map((a: any) => ({
       _id: a._id,
       title: a.title,
       body: a.body,
