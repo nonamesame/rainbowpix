@@ -20,8 +20,13 @@ let app: ReturnType<typeof cloudbase.init> | null = null;
 function getApp() {
   if (!app) {
     ensureRegistered();
+    const envId = process.env.NEXT_PUBLIC_TCB_ENV_ID;
+    console.log("[CloudBase client] env:", envId);
+    if (!envId) {
+      console.error("[CloudBase client] NEXT_PUBLIC_TCB_ENV_ID is missing!");
+    }
     app = cloudbase.init({
-      env: process.env.NEXT_PUBLIC_TCB_ENV_ID!,
+      env: envId!,
       region: "ap-shanghai",
     });
   }
