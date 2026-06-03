@@ -17,16 +17,14 @@ function ensureRegistered() {
 
 let app: ReturnType<typeof cloudbase.init> | null = null;
 
+// 环境ID硬编码：NEXT_PUBLIC_ 变量在 CloudBase Docker 构建环境中不会注入到客户端
+const TCB_ENV_ID = process.env.NEXT_PUBLIC_TCB_ENV_ID || "rainbowpix-prod-d6fdzwh43bd494af";
+
 function getApp() {
   if (!app) {
     ensureRegistered();
-    const envId = process.env.NEXT_PUBLIC_TCB_ENV_ID;
-    console.log("[CloudBase client] env:", envId);
-    if (!envId) {
-      console.error("[CloudBase client] NEXT_PUBLIC_TCB_ENV_ID is missing!");
-    }
     app = cloudbase.init({
-      env: envId!,
+      env: TCB_ENV_ID,
       region: "ap-shanghai",
     });
   }
