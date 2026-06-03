@@ -24,17 +24,30 @@ function setCachedTempUrl(fileID: string, url: string) {
   tempUrlCache.set(fileID, { url, expires: Date.now() + TEMP_URL_CACHE_TTL });
 }
 
+/**
+ * 修正 CloudBase fileID 格式
+ * URL 编码/解码过程中 cloud://xxx 可能变成 cloud:/xxx（少一个斜杠）
+ * CloudBase 要求 fileID 必须是 cloud:// 开头
+ */
+function fixCloudBaseFileId(fileID: string): string {
+  // "cloud:/xxx" → "cloud://xxx"（但不要把已经是 cloud://xxx 的变成 cloud:///xxx）
+  if (/^cloud:\/[^/]/.test(fileID)) {
+    return "cloud:/" + fileID.slice(6); // "cloud:/" + "/xxx" = "cloud://xxx"
+  }
+  return fileID;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: segments } = await params;
-  const fileID = decodeURIComponent(segments.join("/"));
+  const rawFileID = decodeURIComponent(segments.join("/"));
+  const fileID = fixCloudBaseFileId(rawFileID);
 
-  console.log("[image-proxy] request fileID:", fileID);
+  console.log("[image-proxy] raw:", rawFileID, "→ fixed:", fileID);
 
   if (!fileID) {
-    console.error("[image-proxy] empty fileID");
     return Response.json({ error: "Invalid path" }, { status: 400 });
   }
 
@@ -43,15 +56,14 @@ export async function GET(
     let downloadUrl: string | null = getCachedTempUrl(fileID);
 
     if (!downloadUrl) {
-      console.log("[image-proxy] fetching temp URL for:", fileID);
       const urlRes = await app.getTempFileURL({ fileList: [fileID] });
       const fileList = (urlRes as any).fileList || [];
       const item = fileList[0];
 
-      console.log("[image-proxy] CloudBase response:", JSON.stringify(item));
+      console.log("[image-proxy] CloudBase:", item?.code, item?.download_url?.substring(0, 80));
 
       if (!item || item.code !== "SUCCESS" || !item.download_url) {
-        console.error("[image-proxy] getTempFileURL failed:", JSON.stringify(item));
+        console.error("[image-proxy] FAILED:", JSON.stringify(item));
         return Response.json({ error: "Image not found", detail: item }, { status: 404 });
       }
 
@@ -59,9 +71,6 @@ export async function GET(
       setCachedTempUrl(fileID, downloadUrl);
     }
 
-    console.log("[image-proxy] redirecting to:", downloadUrl);
-    // 直接返回 302 重定向到临时 URL，让客户端直接从 CloudBase 加载
-    // 这样避免服务端代理整个图片，大幅提升加载速度
     return Response.redirect(downloadUrl, 302);
   } catch (error) {
     console.error("[image-proxy] error:", error);
