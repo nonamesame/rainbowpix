@@ -140,7 +140,13 @@
       "Bash(xargs grep -l \"collection\")",
       "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
       "Bash(sed \"s/['\\\\\"]\\).*//g\")",
-      "Bash(sed \"s/.*collection\\(['\\\\\"]//g\")"
+      "Bash(sed \"s/.*collection\\(['\\\\\"]//g\")",
+      "Bash(ssh -T git@github.com)",
+      "Bash(timeout 5 bash -c 'echo >/dev/tcp/github.com/22')",
+      "Bash(mkdir -p ~/.ssh)",
+      "Bash(ssh-keygen -t ed25519 -C \"nonamesame@users.noreply.github.com\" -f ~/.ssh/id_ed25519 -N \"\")",
+      "Bash(git ls-files *)",
+      "Bash(git filter-branch *)"
     ]
   }
 }
