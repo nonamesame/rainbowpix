@@ -34,12 +34,11 @@ export async function GET(
   // Owner always gets the original
   if (isOwner || !generation.watermark_enabled) {
     // Redirect to the regular proxy
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
     const imageUrl = generation.image_url;
     // Extract the CloudBase file path from the URL
     const tcbMatch = imageUrl.match(/https?:\/\/[^/]+\.tcloudbaseapp\.com\/(.+)$/);
     if (tcbMatch) {
-      return Response.redirect(`${siteUrl}/api/images/${tcbMatch[1]}`);
+      return Response.redirect(`/api/images/${tcbMatch[1]}`);
     }
     return Response.redirect(imageUrl);
   }

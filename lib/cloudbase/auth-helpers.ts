@@ -121,9 +121,9 @@ export async function saveCookiesAndRedirect(
       fetch("/api/auth/record-registration", { method: "POST" }).catch(() => {});
     }
   }
-  toast.success(successMessage);
+  toast.success(successMessage, { duration: 2000 });
   try { localStorage.removeItem("rainbowpix_generate_state"); } catch {}
   setTimeout(() => {
     window.location.href = redirectUrl;
-  }, 50);
+  }, 1500);
 }

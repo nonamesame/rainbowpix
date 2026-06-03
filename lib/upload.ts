@@ -15,9 +15,7 @@ export async function downloadAndUpload(
     fileContent: buffer,
   });
   const fileID = uploadRes.fileID;
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  return `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
+  return `/api/images/${encodeURIComponent(fileID)}`;
 }
 
 export async function uploadBase64(
@@ -32,7 +30,5 @@ export async function uploadBase64(
     fileContent: buffer,
   });
   const fileID = uploadRes.fileID;
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  return `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
+  return `/api/images/${encodeURIComponent(fileID)}`;
 }

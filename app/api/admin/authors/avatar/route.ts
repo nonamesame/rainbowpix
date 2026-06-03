@@ -38,8 +38,7 @@ export async function POST(request: NextRequest) {
 
     const uploadRes = await app.uploadFile({ cloudPath, fileContent: buffer });
     const fileID = uploadRes.fileID;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    const avatarUrl = `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
+    const avatarUrl = `/api/images/${encodeURIComponent(fileID)}`;
 
     // Update user record
     try {

@@ -40,8 +40,7 @@ export async function POST(request: NextRequest) {
     });
 
     const fileID = uploadRes.fileID;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    const imageUrl = `${siteUrl}/api/images/${encodeURIComponent(fileID)}`;
+    const imageUrl = `/api/images/${encodeURIComponent(fileID)}`;
 
     console.log("Upload success:", { fileID, imageUrl });
 
