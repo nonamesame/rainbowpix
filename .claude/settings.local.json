@@ -146,7 +146,11 @@
       "Bash(mkdir -p ~/.ssh)",
       "Bash(ssh-keygen -t ed25519 -C \"nonamesame@users.noreply.github.com\" -f ~/.ssh/id_ed25519 -N \"\")",
       "Bash(git ls-files *)",
-      "Bash(git filter-branch *)"
+      "Bash(git filter-branch *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch .env' --prune-empty -- --all)",
+      "Bash(git clean *)",
+      "Bash(git reflog *)",
+      "Bash(git gc *)"
     ]
   }
 }

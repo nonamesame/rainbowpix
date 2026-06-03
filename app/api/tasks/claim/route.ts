@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
       rewardData.generation_id = selectedGenerationId;
     }
     const addResult = await serverDb.collection("user_task_rewards").add(rewardData);
-    rewardDocId = addResult.id;
+    rewardDocId = addResult.id ?? null;
   } catch (err: any) {
     if (!err?.message?.includes("Db or Table not exist")) throw err;
   }
