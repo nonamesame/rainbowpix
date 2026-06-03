@@ -236,6 +236,7 @@ export default function InspirationGalleryClient({
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const positionsRef = useRef<Map<string, CardPos>>(new Map());
+  const renderedIdsRef = useRef<Set<string>>(new Set());
   const [positions, setPositions] = useState<Map<string, CardPos>>(new Map());
   const [containerHeight, setContainerHeight] = useState(0);
 
