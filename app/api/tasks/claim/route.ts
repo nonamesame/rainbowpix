@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
           .count();
 
         if (availableWorks.length > 0 && todayClaimed === 0) {
-          selectedGenerationId = availableWorks[0];
+          selectedGenerationId = availableWorks[0] as string;
           isCompleted = true;
         }
         break;

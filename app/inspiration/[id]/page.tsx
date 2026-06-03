@@ -52,7 +52,7 @@ export default async function InspirationDetailPage({
     .get();
 
   // Derive author query from generation query result (runs in parallel via Promise.all)
-  const authorQuery = generationQuery.then(({ data }) => {
+  const authorQuery = generationQuery.then(({ data }: { data: any }) => {
     const uid = data?.[0]?.user_id;
     if (!uid) return Promise.resolve(null) as Promise<{ data: Record<string, unknown>[] } | null>;
     return serverDb
