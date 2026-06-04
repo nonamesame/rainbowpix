@@ -300,11 +300,12 @@ export default function InspirationGalleryClient({
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
-      // 记录新加载的 item ID，用于淡入动画
+      // 先解析临时 URL，避免浏览器请求 serverless 代理
+      await resolveImageUrls((data.items as InspirationItem[]).map((it) => it.image_url));
+      // 记录新加载的 item ID，用于动画
       const newIds = new Set((data.items as InspirationItem[]).map((it) => it._id));
       for (const id of newIds) newItemIds.current.add(id);
       setItems((prev) => { const next = [...prev, ...data.items]; syncMod(next, nextPage); return next; });
-      resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url));
       setPage(nextPage);
       // 动画结束后清除标记
       setTimeout(() => { for (const id of newIds) newItemIds.current.delete(id); }, 500);
@@ -462,8 +463,10 @@ export default function InspirationGalleryClient({
           <>
             {/* 瀑布流：absolute 定位 + 列追踪，新 item 只追加到最矮列底部 */}
             <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
-              {items.map((item) => {
+              {(() => { let batchIdx = 0; return items.map((item) => {
                 const pos = positions.get(item._id);
+                const isNew = newItemIds.current.has(item._id);
+                const delay = isNew ? batchIdx++ * 60 : 0;
                 return (
                   <div
                     key={item._id}
@@ -476,11 +479,12 @@ export default function InspirationGalleryClient({
                     role="button"
                     tabIndex={0}
                     onClick={(e) => handleCardClick(item, e)}
-                    className={`absolute cursor-pointer${newItemIds.current.has(item._id) ? " animate-fadein" : ""}`}
+                    className={`absolute cursor-pointer${isNew ? " animate-fadein" : ""}`}
                     style={pos ? {
                       top: pos.top, left: pos.left, width: pos.width,
+                      "--card-delay": `${delay}ms`,
                       visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
-                    } : { visibility: "hidden" }}
+                    } as React.CSSProperties : { visibility: "hidden" }}
                   >
                     <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                       {/* 预设 aspectRatio 防止高度变化 */}
@@ -509,7 +513,7 @@ export default function InspirationGalleryClient({
                     </div>
                   </div>
                 );
-              })}
+              }); })()}
             </div>
 
             {loadingMore && (

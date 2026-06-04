@@ -206,13 +206,20 @@ input[data-slot="input"]:-webkit-autofill:focus {
   opacity: 0.3;
 }
 
-/* Gallery card fade-in for infinite scroll */
-@keyframes fadein {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Gallery card fade-in — 从下方滑入补上来 */
+@keyframes card-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .animate-fadein {
-  animation: fadein 0.4s ease-out both;
+  animation: card-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--card-delay, 0ms);
 }
 
 /* 图片加载淡入效果 */
