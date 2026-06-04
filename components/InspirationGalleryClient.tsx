@@ -196,18 +196,6 @@ export default function InspirationGalleryClient({
     return () => ro.disconnect();
   }, [items]);
 
-  // ========== 锁定滚动 ==========
-  useEffect(() => {
-    const mainEl = document.querySelector("main");
-    if (!mainEl) return;
-    if (loadingMore) {
-      mainEl.style.overflowY = "hidden";
-    } else {
-      mainEl.style.overflowY = "";
-    }
-    return () => { if (mainEl) mainEl.style.overflowY = ""; };
-  }, [loadingMore]);
-
   // ========== 数据管理 ==========
   useEffect(() => {
     try {
@@ -337,9 +325,10 @@ export default function InspirationGalleryClient({
     finally { loadingRef.current = false; setLoadingMore(false); }
   }
 
-  // Sentinel: 滑到底才加载
+  // Sentinel: 只在非加载状态时渲染，加载中隐藏 sentinel 防止重复触发
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (loadingMore) return; // 加载中不创建 observer
     const el = sentinelRef.current;
     if (!el || !hasMore) return;
     const observer = new IntersectionObserver(
@@ -544,9 +533,17 @@ export default function InspirationGalleryClient({
               })}
             </div>
 
-            {hasMore && <div ref={sentinelRef} className="flex justify-center py-8">
-              {loadingMore && <Loader2 className="size-6 animate-spin text-gray-400" />}
-            </div>}
+            {/* 加载中：底部转圈，不渲染 sentinel 防止重复触发 */}
+            {loadingMore && (
+              <div className="flex justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-gray-400" />
+              </div>
+            )}
+
+            {/* 非加载中 + 还有更多：渲染 sentinel 等待滑到底 */}
+            {!loadingMore && hasMore && (
+              <div ref={sentinelRef} className="h-1" />
+            )}
 
             {!hasMore && total > 0 && (
               <p className="py-8 text-center text-xs text-gray-400">— 已经到底了 —</p>
