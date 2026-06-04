@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Palette, Heart, Loader2, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toProxyUrl } from "@/lib/image-url";
+import { toProxyUrl, resolveImageUrls } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 
 interface Props {
@@ -139,7 +139,22 @@ export default function InspirationGalleryClient({
     if (changed) {
       setPositions(pos);
       setContainerHeight(Math.max(...colH, 0));
-      layoutDone.current = true;
+      // 首次布局完成后恢复滚动位置（必须在容器高度设置后）
+      if (!layoutDone.current) {
+        layoutDone.current = true;
+        if (!returnScrollDoneRef.current) {
+          returnScrollDoneRef.current = true;
+          const saved = sessionStorage.getItem("inspiration-scroll");
+          if (saved !== null) {
+            requestAnimationFrame(() => {
+              const mainEl = document.querySelector("main");
+              if (mainEl) mainEl.scrollTop = Number(saved);
+              sessionStorage.removeItem("inspiration-scroll");
+            });
+          }
+          setScrollReady(true);
+        }
+      }
     }
   }, [items, positions]);
 
@@ -207,7 +222,7 @@ export default function InspirationGalleryClient({
         const allExtra = results.flatMap((r) => r.items || []);
         const seen = new Set(items.map((it) => it._id));
         const fresh = allExtra.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
-        if (fresh.length > 0) { const merged = [...items, ...fresh]; modItems = merged; modPage = savedPageCount; setItems(merged); setPage(savedPageCount); }
+        if (fresh.length > 0) { const merged = [...items, ...fresh]; modItems = merged; modPage = savedPageCount; setItems(merged); setPage(savedPageCount); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url)); }
       } catch {}
     })();
   }, []);
@@ -221,7 +236,7 @@ export default function InspirationGalleryClient({
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
-        if (data.items?.length) { modItems = data.items; modPage = 1; setItems(data.items); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } }
+        if (data.items?.length) { modItems = data.items; modPage = 1; setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } }
         setLoading(false);
       } catch { setLoading(false); }
     })();
@@ -248,7 +263,7 @@ export default function InspirationGalleryClient({
         if (allItems.length > 0) {
           const seen = new Set<string>();
           const merged = allItems.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
-          modItems = merged; modPage = targetPage; setItems(merged); setPage(targetPage);
+          modItems = merged; modPage = targetPage; setItems(merged); setPage(targetPage); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url));
         } else { modPage = targetPage; setPage(targetPage); }
       } catch {}
     })();
@@ -278,6 +293,7 @@ export default function InspirationGalleryClient({
       const data = await res.json();
       if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
       setItems((prev) => { const next = [...prev, ...data.items]; syncMod(next, nextPage); return next; });
+      resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url));
       setPage(nextPage);
       try { sessionStorage.setItem(STORAGE_KEY, String(nextPage)); } catch {}
     } catch { toast.error("加载失败，请重试"); }
@@ -304,7 +320,7 @@ export default function InspirationGalleryClient({
     async function refresh() {
       if (pending || document.visibilityState !== "visible" || modPage > 1) return;
       pending = true;
-      try { const res = await fetch("/api/inspiration?page=1"); if (!res.ok) return; const data = await res.json(); if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) { modItems = data.items; modPage = 1; setItems(data.items); setPage(1); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } } finally { pending = false; }
+      try { const res = await fetch("/api/inspiration?page=1"); if (!res.ok) return; const data = await res.json(); if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) { modItems = data.items; modPage = 1; setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); setPage(1); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } } finally { pending = false; }
     }
     function tick() { refresh(); timer = setTimeout(tick, 60_000); }
     function onVis() { if (document.visibilityState === "visible") { refresh(); if (!timer) timer = setTimeout(tick, 60_000); } else { if (timer) { clearTimeout(timer); timer = null; } } }
@@ -323,19 +339,9 @@ export default function InspirationGalleryClient({
     return () => observer.disconnect();
   }, [router, items]);
 
-  // Scroll restore
+  // Scroll restore — 延迟到瀑布流布局完成后执行，否则容器高度为 0 会滚回顶部
   const returnScrollDoneRef = useRef(false);
   const [scrollReady, setScrollReady] = useState(false);
-  useEffect(() => {
-    if (returnScrollDoneRef.current) return;
-    const saved = sessionStorage.getItem("inspiration-scroll");
-    if (saved === null) { returnScrollDoneRef.current = true; setScrollReady(true); return; }
-    returnScrollDoneRef.current = true;
-    const mainEl = document.querySelector("main");
-    if (mainEl) mainEl.scrollTop = Number(saved);
-    sessionStorage.removeItem("inspiration-scroll");
-    setScrollReady(true);
-  }, []);
 
   // Return animation
   const [returnAnim, setReturnAnim] = useState<{

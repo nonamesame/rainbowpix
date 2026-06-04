@@ -67,7 +67,13 @@ export async function GET(
       setCachedTempUrl(fileID, downloadUrl);
     }
 
-    return Response.redirect(downloadUrl, 302);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: downloadUrl,
+        "Cache-Control": "public, max-age=600, stale-while-revalidate=3600",
+      },
+    });
   } catch (error) {
     console.error("[image-proxy] error:", fileID.substring(0, 80), error);
     return Response.json({ error: "Image not found" }, { status: 500 });

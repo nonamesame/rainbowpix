@@ -39,4 +39,8 @@ export function getDb() {
   return getApp().database();
 }
 
+export function getStorage() {
+  return getApp().storage();
+}
+
 export { getApp };

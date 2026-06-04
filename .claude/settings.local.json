@@ -151,7 +151,23 @@
       "Bash(git clean *)",
       "Bash(git reflog *)",
       "Bash(git gc *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(grep -oP '\\(useMasonry|useInfiniteScroll|IntersectionObserver|loadMore|infinite|scroll|masonry|column|gap|sentinel|threshold|rootMargin\\)[^;]{0,200}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k!='items'},indent=2\\)\\); print\\('items count:',len\\(d.get\\('items',[]\\)\\)\\); print\\('first item keys:',list\\(d['items'][0].keys\\(\\)\\) if d.get\\('items'\\) else 'none'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('type:', type\\(d\\).__name__, 'len:', len\\(d\\)\\); print\\('first id:', d[0]['id'] if d else 'none'\\)\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(grep -oP '.{0,200}masonry.{0,200}' /tmp/gallery.js)",
+      "Bash(grep -oP '.{0,500}columnCount.{0,500}' /tmp/gallery.js)",
+      "Bash(grep -oP 'hk.{0,1000}' /tmp/gallery.js)",
+      "Bash(grep -oP 'fetchNextPage.{0,200}' /tmp/gallery.js)",
+      "Bash(grep -oP 'hasNextPage.{0,200}' /tmp/gallery.js)",
+      "Bash(grep -oP 'isFetchingNextPage.{0,200}' /tmp/gallery.js)",
+      "Bash(grep -oP 'IntersectionObserver.{0,300}' /tmp/gallery.js)",
+      "Bash(grep -oP 'useInView.{0,200}' /tmp/gallery.js)",
+      "Bash(grep -oP 'threshold.{0,100}' /tmp/gallery.js)",
+      "Bash(grep -oP 'queryKey.{0,100}' /tmp/gallery.js)",
+      "Bash(grep -oP 'getNextPageParam.{0,200}' /tmp/gallery.js)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i['full_name'], i['html_url']\\) for i in d.get\\('items',[]\\)]\")"
     ]
   }
 }
