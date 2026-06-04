@@ -284,6 +284,9 @@ export default function InspirationGalleryClient({
   const loadingRef = useRef(false);
   // 追踪新加载的 item，用于淡入动画
   const newItemIds = useRef<Set<string>>(new Set());
+  // 追踪每张图片开始加载的时间
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const imgLoadStarts = useRef(new Map<string, number>()).current;
   // 追踪当前批次图片加载状态，全部加载完才允许加载下一批
   const loadedImageIds = useRef<Set<string>>(new Set());
   // 有待恢复的页码或已有 item 时，初始为 false（等图片加载完再允许加载下一批）
@@ -502,15 +505,15 @@ export default function InspirationGalleryClient({
                           loading="lazy"
                           decoding="async"
                           onLoad={(e) => {
-                            const el = e.currentTarget;
-                            const start = Number(el.dataset.loadStart || 0);
+                            const start = imgLoadStarts.get(item._id) || 0;
                             const ms = start ? Math.round(performance.now() - start) : 0;
-                            const src = el.src.substring(0, 80);
+                            const src = e.currentTarget.src.substring(0, 80);
                             const isProxy = src.includes("/api/images/");
                             console.log(`[img] loaded ${item._id.slice(0, 8)} ${ms}ms ${isProxy ? "PROXY" : "CDN"} ${src}`);
+                            imgLoadStarts.delete(item._id);
                             onImageLoad(item._id);
                           }}
-                          ref={(el) => { if (el) el.dataset.loadStart = String(performance.now()); }}
+                          ref={(el) => { if (el) imgLoadStarts.set(item._id, performance.now()); else imgLoadStarts.delete(item._id); }}
                           className="w-full h-full object-cover"
                         />
                       </div>
