@@ -28,8 +28,6 @@ function LoadingImage({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
-  console.log(`[AnnouncementImage] src:`, src);
-
   return (
     <div className="relative w-full">
       {!loaded && !error && (
@@ -42,17 +40,8 @@ function LoadingImage({
         alt={alt || ""}
         className={className}
         style={{ ...style, display: error ? "none" : undefined }}
-        onLoad={() => {
-          console.log(`[AnnouncementImage] ✓ 加载成功:`, src);
-          setLoaded(true);
-        }}
-        onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          console.error(`[AnnouncementImage] ✗ 加载失败:`, src);
-          console.error(`[AnnouncementImage] 当前完整URL:`, img.currentSrc);
-          console.error(`[AnnouncementImage] 自然宽度:`, img.naturalWidth, `自然高度:`, img.naturalHeight);
-          setError(true);
-        }}
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
       />
     </div>
   );

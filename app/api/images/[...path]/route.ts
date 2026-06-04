@@ -45,16 +45,7 @@ export async function GET(
   const rawFileID = decodeURIComponent(segments.join("/"));
   const fileID = fixCloudBaseFileId(rawFileID);
 
-  const requestId = Math.random().toString(36).slice(2, 8);
-  console.log(`[image-proxy][${requestId}] ─── 新请求 ───`);
-  console.log(`[image-proxy][${requestId}] URL:`, request.url);
-  console.log(`[image-proxy][${requestId}] segments:`, JSON.stringify(segments));
-  console.log(`[image-proxy][${requestId}] rawFileID:`, rawFileID);
-  console.log(`[image-proxy][${requestId}] fileID:`, fileID);
-  console.log(`[image-proxy][${requestId}] Referer:`, request.headers.get("referer") || "none");
-
   if (!fileID) {
-    console.error(`[image-proxy][${requestId}] ERROR: empty fileID`);
     return Response.json({ error: "Invalid path" }, { status: 400 });
   }
 
@@ -62,37 +53,23 @@ export async function GET(
     // 优先使用缓存的临时 URL
     let downloadUrl: string | null = getCachedTempUrl(fileID);
 
-    if (downloadUrl) {
-      console.log(`[image-proxy][${requestId}] 命中缓存 → 302 redirect`);
-      console.log(`[image-proxy][${requestId}] redirect URL:`, downloadUrl.substring(0, 120));
-      return Response.redirect(downloadUrl, 302);
+    if (!downloadUrl) {
+      const urlRes = await app.getTempFileURL({ fileList: [fileID] });
+      const fileList = (urlRes as any).fileList || [];
+      const item = fileList[0];
+
+      if (!item || item.code !== "SUCCESS" || !item.download_url) {
+        console.error("[image-proxy] FAILED:", fileID.substring(0, 80), JSON.stringify(item).substring(0, 200));
+        return Response.json({ error: "Image not found", detail: item }, { status: 404 });
+      }
+
+      downloadUrl = item.download_url as string;
+      setCachedTempUrl(fileID, downloadUrl);
     }
-
-    console.log(`[image-proxy][${requestId}] 缓存未命中，调用 CloudBase getTempFileURL...`);
-    const urlRes = await app.getTempFileURL({ fileList: [fileID] });
-    const fileList = (urlRes as any).fileList || [];
-    const item = fileList[0];
-
-    console.log(`[image-proxy][${requestId}] CloudBase response code:`, item?.code);
-    console.log(`[image-proxy][${requestId}] CloudBase download_url:`, item?.download_url?.substring(0, 150));
-    console.log(`[image-proxy][${requestId}] CloudBase full item:`, JSON.stringify(item).substring(0, 300));
-
-    if (!item || item.code !== "SUCCESS" || !item.download_url) {
-      console.error(`[image-proxy][${requestId}] FAILED - code: ${item?.code}, errMsg: ${item?.errMsg || "none"}`);
-      console.error(`[image-proxy][${requestId}] FAILED - full response:`, JSON.stringify(urlRes).substring(0, 500));
-      return Response.json({ error: "Image not found", detail: item }, { status: 404 });
-    }
-
-    downloadUrl = item.download_url as string;
-    setCachedTempUrl(fileID, downloadUrl);
-
-    console.log(`[image-proxy][${requestId}] 成功 → 302 redirect`);
-    console.log(`[image-proxy][${requestId}] redirect URL:`, downloadUrl.substring(0, 150));
 
     return Response.redirect(downloadUrl, 302);
-  } catch (error: any) {
-    console.error(`[image-proxy][${requestId}] EXCEPTION:`, error?.message || error);
-    console.error(`[image-proxy][${requestId}] STACK:`, error?.stack?.substring(0, 300));
+  } catch (error) {
+    console.error("[image-proxy] error:", fileID.substring(0, 80), error);
     return Response.json({ error: "Image not found" }, { status: 500 });
   }
 }

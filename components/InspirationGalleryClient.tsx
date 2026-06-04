@@ -47,6 +47,7 @@ const STORAGE_FIRST_ID_KEY = "inspiration-gallery-first-id";
 // Without this, each remount resets useState to initialItems, losing loaded-more data.
 let modItems: InspirationItem[] | null = null;
 let modPage = 1;
+let modTotal = 0; // 跟踪 total，确保 page refresh 后恢复
 
 function loadSavedPage(): number | null {
   if (typeof window === "undefined") return null;
@@ -145,7 +146,7 @@ export default function InspirationGalleryClient({
     })();
   }, []);
 
-  // 当 initialItems 为空时（EdgeOne Pages），通过 API 获取数据
+  // 当 initialItems 为空时（EdgeOne Pages / CloudBase），通过 API 获取数据
   useEffect(() => {
     if (initialItems.length > 0 || items.length > 0) return;
     let cancelled = false;
@@ -159,7 +160,11 @@ export default function InspirationGalleryClient({
           modItems = data.items;
           modPage = 1;
           setItems(data.items);
-          if (typeof data.total === "number") setTotal(data.total);
+          // 从 API 响应同步 total
+          if (typeof data.total === "number") {
+            setTotal(data.total);
+            modTotal = data.total;
+          }
         }
         setLoading(false);
       } catch (e) {
@@ -189,24 +194,31 @@ export default function InspirationGalleryClient({
     if (!targetPage || targetPage <= 1) return;
     savedPage.current = null;
 
-
-
     (async () => {
       try {
-        const pageNumbers = Array.from({ length: targetPage - 1 }, (_, i) => i + 2);
+        // 同时获取 page 1 和 pages 2..N，确保 total 也被更新
+        const pageNumbers = [1, ...Array.from({ length: targetPage - 1 }, (_, i) => i + 2)];
         const results = await Promise.all(
           pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
         );
-        const allExtra = results.flatMap((r) => r.items || []);
-        if (allExtra.length > 0) {
-          // Always append to modItems (which survives remounts), with dedup
-          const seen = new Set((modItems || []).map((it) => it._id));
-          const fresh = allExtra.filter((it) => {
+
+        // 从 page 1 响应获取 total
+        const page1Data = results[0];
+        if (typeof page1Data?.total === "number") {
+          setTotal(page1Data.total);
+          modTotal = page1Data.total;
+        }
+
+        // 合并所有页面数据
+        const allItems = results.flatMap((r) => r.items || []);
+        if (allItems.length > 0) {
+          // 去重后合并
+          const seen = new Set<string>();
+          const merged = allItems.filter((it: InspirationItem) => {
             if (seen.has(it._id)) return false;
             seen.add(it._id);
             return true;
           });
-          const merged = [...(modItems || []), ...fresh];
           modItems = merged;
           modPage = targetPage;
           setItems(merged);
@@ -221,8 +233,28 @@ export default function InspirationGalleryClient({
     })();
   }, []);
 
-  const [total, setTotal] = useState(initialTotal);
+  const [total, setTotal] = useState(modTotal || initialTotal);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // 确保 total 一定有值：如果 modItems 有数据但 total 还是 0，请求 page 1 获取 count
+  useEffect(() => {
+    if (total > 0 || items.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/inspiration?page=1");
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (typeof data.total === "number") {
+          setTotal(data.total);
+          modTotal = data.total;
+        }
+      } catch {}
+    })();
+
+    return () => { cancelled = true; };
+  }, [total, items.length]);
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
   const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
@@ -353,7 +385,10 @@ export default function InspirationGalleryClient({
             cardRefs.current.clear();
             setItems(data.items);
             setPage(1);
-            if (typeof data.total === "number") setTotal(data.total);
+            if (typeof data.total === "number") {
+              setTotal(data.total);
+              modTotal = data.total;
+            }
           }
         }
       } finally {
@@ -582,6 +617,13 @@ export default function InspirationGalleryClient({
       if (!res.ok) throw new Error();
       const data = await res.json();
       const newPage = page + 1;
+
+      // 从 API 响应同步 total（防止 total 过期导致提前到底）
+      if (typeof data.total === "number") {
+        setTotal(data.total);
+        modTotal = data.total;
+      }
+
       const newIds = new Set<string>((data.items || []).map((it: InspirationItem) => it._id));
       setNewItemIds(newIds);
       setTimeout(() => setNewItemIds(new Set()), 500);
@@ -747,7 +789,8 @@ export default function InspirationGalleryClient({
           </div>
         )}
 
-        {!hasMore && items.length > 0 && (
+        {/* 只有 total > 0 时才显示"到底了"，total 为 0 说明还没获取到总数 */}
+        {!hasMore && items.length > 0 && total > 0 && (
           <p className="py-8 text-center text-xs text-gray-400">— 已经到底了 —</p>
         )}
       </div>
