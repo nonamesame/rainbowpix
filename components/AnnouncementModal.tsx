@@ -19,27 +19,36 @@ function LoadingImage({
   alt,
   className,
   style,
+  aspectRatio = "16/9",
 }: {
   src: string;
   alt?: string;
   className?: string;
   style?: React.CSSProperties;
+  aspectRatio?: string;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full" style={{ aspectRatio }}>
+      {/* 加载中占位 */}
       {!loaded && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
           <Loader2 className="size-6 animate-spin text-brand" />
+        </div>
+      )}
+      {/* 加载失败占位 */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
+          <span className="text-xs text-gray-400">图片加载失败</span>
         </div>
       )}
       <img
         src={src}
         alt={alt || ""}
-        className={className}
-        style={{ ...style, display: error ? "none" : undefined }}
+        className={`w-full h-full object-cover ${className || ""}`}
+        style={style}
         onLoad={() => setLoaded(true)}
         onError={() => setError(true)}
       />
@@ -145,11 +154,8 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
             <LoadingImage
               src={toProxyUrl(announcement.image!)}
               alt={announcement.title}
-              className="w-full object-cover"
-              style={{
-                maxHeight: textLength > 200 ? "35vh" : "45vh",
-                minHeight: "160px",
-              }}
+              aspectRatio={textLength > 200 ? "16/9" : "4/3"}
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
@@ -210,7 +216,8 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
                   key={i}
                   src={toProxyUrl(part.content)}
                   alt={part.alt || ""}
-                  className="max-h-64 w-full rounded-lg object-contain"
+                  aspectRatio="16/9"
+                  className="rounded-lg object-contain"
                 />
               ) : (
                 <p key={i} className="break-all whitespace-pre-wrap">
