@@ -83,6 +83,13 @@ export default function InspirationGalleryClient({
     } catch {}
   }
 
+  // 渲染计数器（调试用）
+  const renderCountRef = useRef(0);
+  renderCountRef.current++;
+  if (renderCountRef.current <= 5 || renderCountRef.current % 50 === 0) {
+    console.log(`[Gallery] ─── render #${renderCountRef.current} ───`);
+  }
+
   // Initialize module store from server data on first load.
   // On Fast Refresh remount, modItems is null — detect and re-fetch if needed.
   let savedPageCount = 1;
@@ -101,8 +108,6 @@ export default function InspirationGalleryClient({
     modItems = initialItems;
     modPage = savedPageCount > 1 ? savedPageCount : 1;
     console.log("[Gallery] 初始化 modItems → length:", modItems.length, "modPage:", modPage);
-  } else {
-    console.log("[Gallery] modItems 已存在，跳过初始化 → length:", modItems.length, "modPage:", modPage);
   }
 
   const [items, setItems] = useState<InspirationItem[]>(modItems);
@@ -649,7 +654,15 @@ export default function InspirationGalleryClient({
   }
 
   const hasMore = total > 0 && items.length < total;
-  console.log("[Gallery] hasMore:", hasMore, "= (total:", total, "> 0 &&", items.length, "< total)");
+
+  // 只在 hasMore 变化时打印，避免每次渲染刷屏
+  const hasMoreRef = useRef(hasMore);
+  useEffect(() => {
+    if (hasMoreRef.current !== hasMore) {
+      console.log("[Gallery] hasMore 变化:", hasMoreRef.current, "→", hasMore, "| total:", total, "items.length:", items.length);
+      hasMoreRef.current = hasMore;
+    }
+  }, [hasMore, total, items.length]);
 
   // Persist only page number so it survives back-navigation remount
   const persistPage = useCallback((currentPage: number) => {
