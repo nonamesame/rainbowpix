@@ -5,6 +5,7 @@ import { Bell, Heart, MessageCircle, Trash2, X, ThumbsUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { Notification } from "@/lib/notifications";
+import { toProxyUrl } from "@/lib/image-url";
 
 function parseBodyWithImages(body: string) {
   const parts: { type: "text" | "image"; content: string; alt?: string }[] = [];
@@ -265,7 +266,7 @@ export default function NotificationModal({ notifications, initialNotification, 
               <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-6">
                 {selectedNotification.image && (
                   <img
-                    src={selectedNotification.image}
+                    src={toProxyUrl(selectedNotification.image)}
                     alt={selectedNotification.title}
                     className="mb-4 w-full rounded-lg object-cover"
                     onError={(e) => {
@@ -278,7 +279,7 @@ export default function NotificationModal({ notifications, initialNotification, 
                     part.type === "image" ? (
                       <img
                         key={i}
-                        src={part.content}
+                        src={toProxyUrl(part.content)}
                         alt={part.alt || ""}
                         className="max-h-64 w-full rounded-lg object-contain"
                         onError={(e) => {

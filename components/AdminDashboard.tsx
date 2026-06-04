@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toProxyUrl } from "@/lib/image-url";
 
 interface Stats {
   totalUsers: number;
@@ -1073,7 +1074,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                       className="flex gap-3 rounded-lg border border-gray-200 p-3"
                     >
                       <img
-                        src={item.image_url}
+                        src={toProxyUrl(item.image_url)}
                         alt={item.title || item.prompt}
                         className="size-16 rounded object-cover"
                       />

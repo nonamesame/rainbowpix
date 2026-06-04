@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Megaphone, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toProxyUrl } from "@/lib/image-url";
 
 interface Announcement {
   _id: string;
@@ -142,7 +143,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
         {hasImage && (
           <div className="relative w-full overflow-hidden">
             <LoadingImage
-              src={announcement.image!}
+              src={toProxyUrl(announcement.image!)}
               alt={announcement.title}
               className="w-full object-cover"
               style={{
@@ -207,7 +208,7 @@ function AnnouncementModalContent({ announcements, onClose }: Props) {
               part.type === "image" ? (
                 <LoadingImage
                   key={i}
-                  src={part.content}
+                  src={toProxyUrl(part.content)}
                   alt={part.alt || ""}
                   className="max-h-64 w-full rounded-lg object-contain"
                 />
