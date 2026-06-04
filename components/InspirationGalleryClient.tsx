@@ -294,19 +294,26 @@ export default function InspirationGalleryClient({
     setLoadingMore(true);
     setImagesAllLoaded(false);
     const nextPage = page + 1;
+    const t0 = performance.now();
     try {
+      const tFetch = performance.now();
       const res = await fetch(`/api/inspiration?page=${nextPage}`);
       if (res.status === 429) { toast.error("加载太快了，稍后再试"); return; }
       if (!res.ok) throw new Error();
       const data = await res.json();
+      const items = data.items as InspirationItem[];
+      console.log(`[img] loadMore page ${nextPage}: fetch ${Math.round(performance.now() - tFetch)}ms, ${items.length} items`);
       if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
       // 先解析临时 URL，避免浏览器请求 serverless 代理
-      await resolveImageUrls((data.items as InspirationItem[]).map((it) => it.image_url));
+      const tResolve = performance.now();
+      await resolveImageUrls(items.map((it) => it.image_url));
+      console.log(`[img] loadMore resolveImageUrls ${Math.round(performance.now() - tResolve)}ms`);
       // 记录新加载的 item ID，用于动画
-      const newIds = new Set((data.items as InspirationItem[]).map((it) => it._id));
+      const newIds = new Set(items.map((it) => it._id));
       for (const id of newIds) newItemIds.current.add(id);
-      setItems((prev) => { const next = [...prev, ...data.items]; syncMod(next, nextPage); return next; });
+      setItems((prev) => { const next = [...prev, ...items]; syncMod(next, nextPage); return next; });
       setPage(nextPage);
+      console.log(`[img] loadMore total ${Math.round(performance.now() - t0)}ms (page ${nextPage} ready)`);
       // 动画结束后清除标记
       setTimeout(() => { for (const id of newIds) newItemIds.current.delete(id); }, 500);
       try { sessionStorage.setItem(STORAGE_KEY, String(nextPage)); } catch {}
@@ -494,7 +501,16 @@ export default function InspirationGalleryClient({
                           alt={item.prompt}
                           loading="lazy"
                           decoding="async"
-                          onLoad={() => onImageLoad(item._id)}
+                          onLoad={(e) => {
+                            const el = e.currentTarget;
+                            const start = Number(el.dataset.loadStart || 0);
+                            const ms = start ? Math.round(performance.now() - start) : 0;
+                            const src = el.src.substring(0, 80);
+                            const isProxy = src.includes("/api/images/");
+                            console.log(`[img] loaded ${item._id.slice(0, 8)} ${ms}ms ${isProxy ? "PROXY" : "CDN"} ${src}`);
+                            onImageLoad(item._id);
+                          }}
+                          ref={(el) => { if (el) el.dataset.loadStart = String(performance.now()); }}
                           className="w-full h-full object-cover"
                         />
                       </div>

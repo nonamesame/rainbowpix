@@ -44,7 +44,13 @@ export async function resolveImageUrls(urls: string[]): Promise<void> {
       return !cached || cached.expires <= Date.now();
     });
 
-  if (fileIDs.length === 0) return;
+  if (fileIDs.length === 0) {
+    console.log("[img] resolveImageUrls: all cached, skip");
+    return;
+  }
+
+  console.log(`[img] resolveImageUrls: ${fileIDs.length} URLs to resolve`);
+  const t0 = performance.now();
 
   try {
     const { getStorage } = await import("@/lib/cloudbase/client");
@@ -53,18 +59,27 @@ export async function resolveImageUrls(urls: string[]): Promise<void> {
     // CloudBase 每批最多 50 个
     for (let i = 0; i < fileIDs.length; i += 50) {
       const batch = fileIDs.slice(i, i + 50);
+      const batchT0 = performance.now();
       const res = await storage.getTempFileURL({ fileList: batch });
+      const batchMs = Math.round(performance.now() - batchT0);
+      let ok = 0, fail = 0;
       for (const item of (res as any).fileList || []) {
         if (item.code === "SUCCESS" && item.tempFileURL) {
           tempUrlCache.set(item.fileID, {
             url: item.tempFileURL,
             expires: Date.now() + TEMP_URL_CACHE_TTL,
           });
+          ok++;
+        } else {
+          fail++;
+          console.warn(`[img] getTempFileURL failed:`, item.fileID?.substring(0, 60), item.code, item.message);
         }
       }
+      console.log(`[img] batch ${i / 50 + 1}: ${batch.length} files, ok=${ok} fail=${fail}, ${batchMs}ms`);
     }
+    console.log(`[img] resolveImageUrls total: ${Math.round(performance.now() - t0)}ms`);
   } catch (e) {
-    console.warn("[resolveImageUrls] failed:", e);
+    console.warn("[resolveImageUrls] failed:", performance.now() - t0, "ms", e);
   }
 }
 
