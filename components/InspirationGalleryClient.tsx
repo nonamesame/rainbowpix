@@ -20,10 +20,14 @@ function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
 }
 
-// 默认宽高比 3:4（竖图居多），有 width/height 时用实际比例
-function getAspectRatio(item: InspirationItem): string {
-  if (item.width && item.height) return `${item.width}/${item.height}`;
-  return "3/4";
+function getColCount(w: number) {
+  if (w >= 1024) return 4;
+  if (w >= 640) return 3;
+  return 2;
+}
+
+function getGap(w: number) {
+  return w >= 768 ? 16 : 12;
 }
 
 const STORAGE_KEY = "inspiration-gallery-page";
@@ -38,16 +42,22 @@ function loadSavedPage(): number | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const page = parseInt(raw, 10);
-    return page > 1 ? page : null;
+    const p = parseInt(raw, 10);
+    return p > 1 ? p : null;
   } catch { return null; }
+}
+
+interface CardPos {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
 }
 
 export default function InspirationGalleryClient({
   initialItems, total: initialTotal, currentUserId,
 }: Props) {
   const savedPage = useRef(loadSavedPage());
-
   const returnAnimIdRef = useRef<string | null>(null);
   if (returnAnimIdRef.current === null && typeof window !== "undefined") {
     try {
@@ -79,6 +89,100 @@ export default function InspirationGalleryClient({
   const router = useRouter();
   const hasMore = total > 0 && items.length < total;
 
+  // ========== 瀑布流布局 ==========
+  // positions 记录每个 item 的绝对位置，一旦设定就不变
+  const [positions, setPositions] = useState<Map<string, CardPos>>(() => new Map());
+  const [containerHeight, setContainerHeight] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardEls = useRef<Map<string, HTMLDivElement>>(new Map());
+  // 初始布局是否完成（防止首次渲染时闪烁）
+  const layoutDone = useRef(false);
+
+  // 给新 item 分配位置（只处理没有位置的 item，已有位置的不动）
+  const layoutNew = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const w = container.offsetWidth;
+    const cols = getColCount(w);
+    const gap = getGap(w);
+    const colW = (w - gap * (cols - 1)) / cols;
+
+    // 从已有 positions 恢复各列高度
+    const colH = new Array(cols).fill(0);
+    const pos = new Map(positions);
+
+    for (const [, p] of pos) {
+      const col = Math.round(p.left / (colW + gap));
+      const bottom = p.top + p.height + gap;
+      if (bottom > (colH[col] || 0)) colH[col] = bottom;
+    }
+
+    let changed = false;
+    for (const item of items) {
+      if (pos.has(item._id)) continue;
+      const el = cardEls.current.get(item._id);
+      if (!el) continue;
+
+      const h = el.offsetHeight || 200;
+      // 找最矮列
+      let min = 0;
+      for (let c = 1; c < cols; c++) {
+        if ((colH[c] || 0) < (colH[min] || 0)) min = c;
+      }
+      const left = min * (colW + gap);
+      const top = colH[min] || 0;
+      pos.set(item._id, { top, left, width: colW, height: h });
+      colH[min] = top + h + gap;
+      changed = true;
+    }
+
+    if (changed) {
+      setPositions(pos);
+      setContainerHeight(Math.max(...colH, 0));
+      layoutDone.current = true;
+    }
+  }, [items, positions]);
+
+  // DOM 更新后给新 item 定位
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const t = setTimeout(layoutNew, 0);
+      return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [items, layoutNew]);
+
+  // Resize 时全量重排（列数变了需要重算）
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => {
+      const w = container.offsetWidth;
+      const cols = getColCount(w);
+      const gap = getGap(w);
+      const colW = (w - gap * (cols - 1)) / cols;
+      const colH = new Array(cols).fill(0);
+      const newPos = new Map<string, CardPos>();
+
+      for (const item of items) {
+        const el = cardEls.current.get(item._id);
+        const h = el?.offsetHeight || 200;
+        let min = 0;
+        for (let c = 1; c < cols; c++) {
+          if ((colH[c] || 0) < (colH[min] || 0)) min = c;
+        }
+        const left = min * (colW + gap);
+        const top = colH[min] || 0;
+        newPos.set(item._id, { top, left, width: colW, height: h });
+        colH[min] = top + h + gap;
+      }
+      setPositions(newPos);
+      setContainerHeight(Math.max(...colH, 0));
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [items]);
+
   // ========== 数据管理 ==========
   useEffect(() => {
     try {
@@ -99,9 +203,7 @@ export default function InspirationGalleryClient({
     (async () => {
       try {
         const pageNumbers = Array.from({ length: savedPageCount - 1 }, (_, i) => i + 2);
-        const results = await Promise.all(
-          pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
-        );
+        const results = await Promise.all(pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json())));
         const allExtra = results.flatMap((r) => r.items || []);
         const seen = new Set(items.map((it) => it._id));
         const fresh = allExtra.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
@@ -217,7 +319,7 @@ export default function InspirationGalleryClient({
       (entries) => { for (const e of entries) { if (e.isIntersecting) { const id = e.target.getAttribute("data-item-id"); if (id) router.prefetch(`/inspiration/${id}`); } } },
       { rootMargin: "200px" }
     );
-    document.querySelectorAll("[data-item-id]").forEach((el) => observer.observe(el));
+    for (const [, el] of cardEls.current) observer.observe(el);
     return () => observer.disconnect();
   }, [router, items]);
 
@@ -242,7 +344,6 @@ export default function InspirationGalleryClient({
     to: { top: number; left: number; width: number; height: number };
     phase: "positioning" | "animating";
   } | null>(null);
-  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (!scrollReady) return;
@@ -256,11 +357,11 @@ export default function InspirationGalleryClient({
       const tryAnim = () => {
         const el = cardRefs.current.get(id);
         if (!el) return;
-        const target = el.getBoundingClientRect();
-        if (target.width === 0 || target.height === 0) { requestAnimationFrame(tryAnim); return; }
+        const t = el.getBoundingClientRect();
+        if (t.width === 0 || t.height === 0) { requestAnimationFrame(tryAnim); return; }
         returnAnimIdRef.current = null;
         document.body.removeAttribute("data-return");
-        setReturnAnim({ id, item, from: { top, left, width, height }, to: { top: target.top, left: target.left, width: target.width, height: target.height }, phase: "positioning" });
+        setReturnAnim({ id, item, from: { top, left, width, height }, to: { top: t.top, left: t.left, width: t.width, height: t.height }, phase: "positioning" });
         requestAnimationFrame(() => requestAnimationFrame(() => setReturnAnim((p) => p ? { ...p, phase: "animating" } : null)));
       };
       requestAnimationFrame(() => requestAnimationFrame(tryAnim));
@@ -270,6 +371,7 @@ export default function InspirationGalleryClient({
   const persistPage = useCallback((p: number) => { try { sessionStorage.setItem(STORAGE_KEY, String(p)); } catch {} }, []);
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
   const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   function handleCardClick(item: InspirationItem, e: React.MouseEvent) {
     const card = (e.target as HTMLElement).closest("[data-card]");
@@ -331,56 +433,63 @@ export default function InspirationGalleryClient({
           </div>
         ) : items.length > 0 ? (
           <>
-            {/* CSS columns 瀑布流 — 图片预设 aspectRatio 防止高度变化触发重排 */}
-            <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 md:gap-4">
-              {items.map((item) => (
-                <div
-                  key={item._id}
-                  ref={(el) => { if (el) cardRefs.current.set(item._id, el); else cardRefs.current.delete(item._id); }}
-                  data-card
-                  data-item-id={item._id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => handleCardClick(item, e)}
-                  className="mb-3 md:mb-4 break-inside-avoid cursor-pointer group"
-                  style={(returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? { visibility: "hidden" } : undefined}
-                >
-                  <div className="relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-                    {/* 预设 aspectRatio 占位，防止 lazy load 高度变化 */}
-                    <div style={{ aspectRatio: getAspectRatio(item) }} className="w-full bg-gray-50">
-                      <img
-                        src={toProxyUrl(item.image_url)}
-                        alt={item.prompt}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover"
-                      />
+            {/* 瀑布流：absolute 定位 + 列追踪，新 item 只追加到最矮列底部 */}
+            <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
+              {items.map((item) => {
+                const pos = positions.get(item._id);
+                return (
+                  <div
+                    key={item._id}
+                    ref={(el) => {
+                      if (el) { cardEls.current.set(item._id, el); cardRefs.current.set(item._id, el); }
+                      else { cardEls.current.delete(item._id); cardRefs.current.delete(item._id); }
+                    }}
+                    data-card
+                    data-item-id={item._id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => handleCardClick(item, e)}
+                    className="absolute cursor-pointer"
+                    style={pos ? {
+                      top: pos.top, left: pos.left, width: pos.width,
+                      visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
+                    } : { visibility: "hidden" }}
+                  >
+                    <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                      {/* 预设 aspectRatio 防止高度变化 */}
+                      <div style={{ aspectRatio: item.width && item.height ? `${item.width}/${item.height}` : "3/4" }} className="w-full bg-gray-50">
+                        <img
+                          src={toProxyUrl(item.image_url)}
+                          alt={item.prompt}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                      <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <p className="truncate text-xs font-medium text-white drop-shadow-md">{item.title || truncate(item.prompt, 20)}</p>
+                      </div>
+                      <button
+                        onClick={(e) => handleCardLike(e, item)}
+                        disabled={likingIds.has(item._id)}
+                        className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${item.user_liked ? "text-red-500" : "text-white hover:text-red-500"}`}
+                      >
+                        <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
+                        <span>{item.likes_count || 0}</span>
+                      </button>
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                    <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                      <p className="truncate text-xs font-medium text-white drop-shadow-md">{item.title || truncate(item.prompt, 20)}</p>
-                    </div>
-                    <button
-                      onClick={(e) => handleCardLike(e, item)}
-                      disabled={likingIds.has(item._id)}
-                      className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${item.user_liked ? "text-red-500" : "text-white hover:text-red-500"}`}
-                    >
-                      <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
-                      <span>{item.likes_count || 0}</span>
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* 加载中：底部转圈 */}
             {loadingMore && (
               <div className="flex justify-center py-8">
                 <Loader2 className="size-6 animate-spin text-gray-400" />
               </div>
             )}
 
-            {/* 非加载中 + 还有更多：sentinel */}
             {!loadingMore && hasMore && (
               <div ref={sentinelRef} className="h-1" />
             )}
