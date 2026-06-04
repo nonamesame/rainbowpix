@@ -471,7 +471,8 @@ export default function InspirationGalleryClient({
           const k = sessionStorage.key(i);
           if (k && k !== STORAGE_KEY && k !== STORAGE_FIRST_ID_KEY
               && k !== "inspiration-scroll" && k !== "inspiration-return-anim"
-              && k !== "inspiration-card-anim" && k !== "theme") {
+              && k !== "inspiration-card-anim" && k !== "theme"
+              && !k.startsWith("announcement_shown_")) {
             sessionStorage.removeItem(k);
           }
         }
