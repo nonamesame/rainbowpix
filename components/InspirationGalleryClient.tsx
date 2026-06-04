@@ -222,7 +222,8 @@ export default function InspirationGalleryClient({
         const allExtra = results.flatMap((r) => r.items || []);
         const seen = new Set(items.map((it) => it._id));
         const fresh = allExtra.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
-        if (fresh.length > 0) { const merged = [...items, ...fresh]; modItems = merged; modPage = savedPageCount; setItems(merged); setPage(savedPageCount); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url)); }
+        if (fresh.length > 0) { const merged = [...items, ...fresh]; modItems = merged; modPage = savedPageCount; loadedImageIds.current.clear(); setImagesAllLoaded(true); setItems(merged); setPage(savedPageCount); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url)); }
+        else { setImagesAllLoaded(true); }
       } catch {}
     })();
   }, []);
@@ -236,7 +237,7 @@ export default function InspirationGalleryClient({
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
-        if (data.items?.length) { modItems = data.items; modPage = 1; setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } }
+        if (data.items?.length) { modItems = data.items; modPage = 1; loadedImageIds.current.clear(); setImagesAllLoaded(true); setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } }
         setLoading(false);
       } catch { setLoading(false); }
     })();
@@ -263,7 +264,7 @@ export default function InspirationGalleryClient({
         if (allItems.length > 0) {
           const seen = new Set<string>();
           const merged = allItems.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
-          modItems = merged; modPage = targetPage; setItems(merged); setPage(targetPage); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url));
+          modItems = merged; modPage = targetPage; loadedImageIds.current.clear(); setImagesAllLoaded(true); setItems(merged); setPage(targetPage); resolveImageUrls(merged.map((it: InspirationItem) => it.image_url));
         } else { modPage = targetPage; setPage(targetPage); }
       } catch {}
     })();
@@ -281,10 +282,17 @@ export default function InspirationGalleryClient({
 
   // ========== Load More ==========
   const loadingRef = useRef(false);
+  // 追踪新加载的 item，用于淡入动画
+  const newItemIds = useRef<Set<string>>(new Set());
+  // 追踪当前批次图片加载状态，全部加载完才允许加载下一批
+  const loadedImageIds = useRef<Set<string>>(new Set());
+  // 有待恢复的页码或已有 item 时，初始为 false（等图片加载完再允许加载下一批）
+  const [imagesAllLoaded, setImagesAllLoaded] = useState(savedPageCount <= 1 && modItems.length === 0);
   async function loadMore() {
-    if (loadingRef.current || !hasMore || loadingMore) return;
+    if (loadingRef.current || !hasMore || loadingMore || !imagesAllLoaded) return;
     loadingRef.current = true;
     setLoadingMore(true);
+    setImagesAllLoaded(false);
     const nextPage = page + 1;
     try {
       const res = await fetch(`/api/inspiration?page=${nextPage}`);
@@ -292,18 +300,23 @@ export default function InspirationGalleryClient({
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
+      // 记录新加载的 item ID，用于淡入动画
+      const newIds = new Set((data.items as InspirationItem[]).map((it) => it._id));
+      for (const id of newIds) newItemIds.current.add(id);
       setItems((prev) => { const next = [...prev, ...data.items]; syncMod(next, nextPage); return next; });
       resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url));
       setPage(nextPage);
+      // 动画结束后清除标记
+      setTimeout(() => { for (const id of newIds) newItemIds.current.delete(id); }, 500);
       try { sessionStorage.setItem(STORAGE_KEY, String(nextPage)); } catch {}
     } catch { toast.error("加载失败，请重试"); }
     finally { loadingRef.current = false; setLoadingMore(false); }
   }
 
-  // Sentinel
+  // Sentinel — 图片全部加载完才触发下一批
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (loadingMore) return;
+    if (loadingMore || !imagesAllLoaded) return;
     const el = sentinelRef.current;
     if (!el || !hasMore) return;
     const observer = new IntersectionObserver(
@@ -312,7 +325,7 @@ export default function InspirationGalleryClient({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [page, hasMore, loadingMore]);
+  }, [page, hasMore, loadingMore, imagesAllLoaded]);
 
   // Polling
   useEffect(() => {
@@ -320,7 +333,7 @@ export default function InspirationGalleryClient({
     async function refresh() {
       if (pending || document.visibilityState !== "visible" || modPage > 1) return;
       pending = true;
-      try { const res = await fetch("/api/inspiration?page=1"); if (!res.ok) return; const data = await res.json(); if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) { modItems = data.items; modPage = 1; setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); setPage(1); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } } finally { pending = false; }
+      try { const res = await fetch("/api/inspiration?page=1"); if (!res.ok) return; const data = await res.json(); if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) { modItems = data.items; modPage = 1; loadedImageIds.current.clear(); setImagesAllLoaded(true); setItems(data.items); resolveImageUrls(data.items.map((it: InspirationItem) => it.image_url)); setPage(1); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } } finally { pending = false; }
     }
     function tick() { refresh(); timer = setTimeout(tick, 60_000); }
     function onVis() { if (document.visibilityState === "visible") { refresh(); if (!timer) timer = setTimeout(tick, 60_000); } else { if (timer) { clearTimeout(timer); timer = null; } } }
@@ -378,6 +391,14 @@ export default function InspirationGalleryClient({
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
   const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  function onImageLoad(id: string) {
+    loadedImageIds.current.add(id);
+    // 检查是否所有当前 item 的图片都已加载
+    if (loadedImageIds.current.size >= items.length) {
+      setImagesAllLoaded(true);
+    }
+  }
 
   function handleCardClick(item: InspirationItem, e: React.MouseEvent) {
     const card = (e.target as HTMLElement).closest("[data-card]");
@@ -455,7 +476,7 @@ export default function InspirationGalleryClient({
                     role="button"
                     tabIndex={0}
                     onClick={(e) => handleCardClick(item, e)}
-                    className="absolute cursor-pointer"
+                    className={`absolute cursor-pointer${newItemIds.current.has(item._id) ? " animate-fadein" : ""}`}
                     style={pos ? {
                       top: pos.top, left: pos.left, width: pos.width,
                       visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
@@ -469,6 +490,7 @@ export default function InspirationGalleryClient({
                           alt={item.prompt}
                           loading="lazy"
                           decoding="async"
+                          onLoad={() => onImageLoad(item._id)}
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -496,7 +518,14 @@ export default function InspirationGalleryClient({
               </div>
             )}
 
-            {!loadingMore && hasMore && (
+            {!loadingMore && !imagesAllLoaded && hasMore && (
+              <div className="flex items-center justify-center gap-2 py-6">
+                <Loader2 className="size-4 animate-spin text-gray-400" />
+                <span className="text-xs text-gray-400">图片加载中...</span>
+              </div>
+            )}
+
+            {!loadingMore && imagesAllLoaded && hasMore && (
               <div ref={sentinelRef} className="h-1" />
             )}
 

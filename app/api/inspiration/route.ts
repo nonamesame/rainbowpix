@@ -17,8 +17,7 @@ function getCachedInspirationCount(): number | null {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-  // 初始加载较少数量，避免页面卡顿，后续分页保持 12 张
-  const pageSize = 12;
+  const pageSize = 10;
   const from = (page - 1) * pageSize;
 
   // Optional auth for checking like status
