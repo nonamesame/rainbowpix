@@ -16,31 +16,19 @@ interface Props {
   currentUserId?: string;
 }
 
-interface CardPos {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
 function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
 }
 
-function getColumnCount(width: number) {
-  if (width >= 1024) return 4;
-  if (width >= 640) return 3;
-  return 2;
-}
-
-function getGap(width: number) {
-  return width >= 768 ? 16 : 12;
+// 默认宽高比 3:4（竖图居多），有 width/height 时用实际比例
+function getAspectRatio(item: InspirationItem): string {
+  if (item.width && item.height) return `${item.width}/${item.height}`;
+  return "3/4";
 }
 
 const STORAGE_KEY = "inspiration-gallery-page";
 const STORAGE_FIRST_ID_KEY = "inspiration-gallery-first-id";
 
-// Module-level store
 let modItems: InspirationItem[] | null = null;
 let modPage = 1;
 let modTotal = 0;
@@ -89,112 +77,7 @@ export default function InspirationGalleryClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(modTotal || initialTotal);
   const router = useRouter();
-
   const hasMore = total > 0 && items.length < total;
-
-  // ========== 瀑布流布局 ==========
-  // 核心：positions Map 只记录已定位的卡片，新增卡片追加到最矮列
-  const [positions, setPositions] = useState<Map<string, CardPos>>(new Map());
-  const [containerHeight, setContainerHeight] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cardEls = useRef<Map<string, HTMLDivElement>>(new Map());
-
-  // 计算新卡片的位置（只给新卡片定位，已有卡片不动）
-  const layoutNewCards = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const containerWidth = container.offsetWidth;
-    const cols = getColumnCount(containerWidth);
-    const gap = getGap(containerWidth);
-    const colWidth = (containerWidth - gap * (cols - 1)) / cols;
-
-    // 从已有 positions 恢复各列高度
-    const colHeights = new Array(cols).fill(0);
-    const existingPos = positions;
-
-    // 先计算已有卡片占据的列高
-    for (const [, pos] of existingPos) {
-      const col = Math.round(pos.left / (colWidth + gap));
-      const bottom = pos.top + pos.height + gap;
-      if (bottom > colHeights[col]) colHeights[col] = bottom;
-    }
-
-    // 找出还没有位置的新卡片
-    const newPositions = new Map(existingPos);
-    let changed = false;
-
-    for (const item of items) {
-      if (newPositions.has(item._id)) continue;
-      const el = cardEls.current.get(item._id);
-      if (!el) continue;
-
-      const height = el.offsetHeight || 200;
-      // 找最矮列
-      let minCol = 0;
-      for (let c = 1; c < cols; c++) {
-        if (colHeights[c] < colHeights[minCol]) minCol = c;
-      }
-      const left = minCol * (colWidth + gap);
-      const top = colHeights[minCol];
-      newPositions.set(item._id, { top, left, width: colWidth, height });
-      colHeights[minCol] = top + height + gap;
-      changed = true;
-    }
-
-    if (changed) {
-      setPositions(new Map(newPositions));
-      setContainerHeight(Math.max(...colHeights, 0));
-    }
-  }, [items, positions]);
-
-  // DOM 更新后给新卡片定位
-  useEffect(() => {
-    // 用 requestAnimationFrame 等待 DOM 更新完成
-    const raf = requestAnimationFrame(() => {
-      const timer = setTimeout(layoutNewCards, 0);
-      return () => clearTimeout(timer);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [items, layoutNewCards]);
-
-  // 图片加载完成后重新布局（因为高度变了）
-  const onImageLoad = useCallback(() => {
-    requestAnimationFrame(() => layoutNewCards());
-  }, [layoutNewCards]);
-
-  // Resize 时重新布局所有卡片
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(() => {
-      // Resize 时需要重新计算所有卡片位置
-      const containerWidth = container.offsetWidth;
-      const cols = getColumnCount(containerWidth);
-      const gap = getGap(containerWidth);
-      const colWidth = (containerWidth - gap * (cols - 1)) / cols;
-      const colHeights = new Array(cols).fill(0);
-      const newPositions = new Map<string, CardPos>();
-
-      for (const item of items) {
-        const el = cardEls.current.get(item._id);
-        const height = el?.offsetHeight || 200;
-        let minCol = 0;
-        for (let c = 1; c < cols; c++) {
-          if (colHeights[c] < colHeights[minCol]) minCol = c;
-        }
-        const left = minCol * (colWidth + gap);
-        const top = colHeights[minCol];
-        newPositions.set(item._id, { top, left, width: colWidth, height });
-        colHeights[minCol] = top + height + gap;
-      }
-
-      setPositions(newPositions);
-      setContainerHeight(Math.max(...colHeights, 0));
-    });
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [items]);
 
   // ========== 数据管理 ==========
   useEffect(() => {
@@ -221,16 +104,8 @@ export default function InspirationGalleryClient({
         );
         const allExtra = results.flatMap((r) => r.items || []);
         const seen = new Set(items.map((it) => it._id));
-        const fresh = allExtra.filter((it: InspirationItem) => {
-          if (seen.has(it._id)) return false;
-          seen.add(it._id);
-          return true;
-        });
-        if (fresh.length > 0) {
-          const merged = [...items, ...fresh];
-          modItems = merged; modPage = savedPageCount;
-          setItems(merged); setPage(savedPageCount);
-        }
+        const fresh = allExtra.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
+        if (fresh.length > 0) { const merged = [...items, ...fresh]; modItems = merged; modPage = savedPageCount; setItems(merged); setPage(savedPageCount); }
       } catch {}
     })();
   }, []);
@@ -244,11 +119,7 @@ export default function InspirationGalleryClient({
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
-        if (data.items?.length) {
-          modItems = data.items; modPage = 1;
-          setItems(data.items);
-          if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
-        }
+        if (data.items?.length) { modItems = data.items; modPage = 1; setItems(data.items); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } }
         setLoading(false);
       } catch { setLoading(false); }
     })();
@@ -268,19 +139,14 @@ export default function InspirationGalleryClient({
     (async () => {
       try {
         const pageNumbers = [1, ...Array.from({ length: targetPage - 1 }, (_, i) => i + 2)];
-        const results = await Promise.all(
-          pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
-        );
+        const results = await Promise.all(pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json())));
         const page1Data = results[0];
         if (typeof page1Data?.total === "number") { setTotal(page1Data.total); modTotal = page1Data.total; }
         const allItems = results.flatMap((r) => r.items || []);
         if (allItems.length > 0) {
           const seen = new Set<string>();
-          const merged = allItems.filter((it: InspirationItem) => {
-            if (seen.has(it._id)) return false; seen.add(it._id); return true;
-          });
-          modItems = merged; modPage = targetPage;
-          setItems(merged); setPage(targetPage);
+          const merged = allItems.filter((it: InspirationItem) => { if (seen.has(it._id)) return false; seen.add(it._id); return true; });
+          modItems = merged; modPage = targetPage; setItems(merged); setPage(targetPage);
         } else { modPage = targetPage; setPage(targetPage); }
       } catch {}
     })();
@@ -291,12 +157,7 @@ export default function InspirationGalleryClient({
     if (total > 0 || items.length === 0) return;
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch("/api/inspiration?page=1");
-        if (cancelled || !res.ok) return;
-        const data = await res.json();
-        if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
-      } catch {}
+      try { const res = await fetch("/api/inspiration?page=1"); if (cancelled || !res.ok) return; const data = await res.json(); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } catch {}
     })();
     return () => { cancelled = true; };
   }, [total, items.length]);
@@ -314,26 +175,22 @@ export default function InspirationGalleryClient({
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
-      setItems((prev) => {
-        const next = [...prev, ...data.items];
-        syncMod(next, nextPage);
-        return next;
-      });
+      setItems((prev) => { const next = [...prev, ...data.items]; syncMod(next, nextPage); return next; });
       setPage(nextPage);
       try { sessionStorage.setItem(STORAGE_KEY, String(nextPage)); } catch {}
     } catch { toast.error("加载失败，请重试"); }
     finally { loadingRef.current = false; setLoadingMore(false); }
   }
 
-  // Sentinel: 只在非加载状态时渲染，加载中隐藏 sentinel 防止重复触发
+  // Sentinel
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (loadingMore) return; // 加载中不创建 observer
+    if (loadingMore) return;
     const el = sentinelRef.current;
     if (!el || !hasMore) return;
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) loadMore(); },
-      { root: document.querySelector("main"), rootMargin: "0px" }
+      { root: document.querySelector("main"), rootMargin: "200px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -341,27 +198,14 @@ export default function InspirationGalleryClient({
 
   // Polling
   useEffect(() => {
-    let pending = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pending = false; let timer: ReturnType<typeof setTimeout> | null = null;
     async function refresh() {
       if (pending || document.visibilityState !== "visible" || modPage > 1) return;
       pending = true;
-      try {
-        const res = await fetch("/api/inspiration?page=1");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) {
-          modItems = data.items; modPage = 1;
-          setItems(data.items); setPage(1);
-          if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; }
-        }
-      } finally { pending = false; }
+      try { const res = await fetch("/api/inspiration?page=1"); if (!res.ok) return; const data = await res.json(); if (data.items?.length && data.items[0]?._id !== modItems?.[0]?._id) { modItems = data.items; modPage = 1; setItems(data.items); setPage(1); if (typeof data.total === "number") { setTotal(data.total); modTotal = data.total; } } } finally { pending = false; }
     }
     function tick() { refresh(); timer = setTimeout(tick, 60_000); }
-    function onVis() {
-      if (document.visibilityState === "visible") { refresh(); if (!timer) timer = setTimeout(tick, 60_000); }
-      else { if (timer) { clearTimeout(timer); timer = null; } }
-    }
+    function onVis() { if (document.visibilityState === "visible") { refresh(); if (!timer) timer = setTimeout(tick, 60_000); } else { if (timer) { clearTimeout(timer); timer = null; } } }
     if (document.visibilityState === "visible") { refresh(); timer = setTimeout(tick, 60_000); }
     document.addEventListener("visibilitychange", onVis);
     return () => { if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
@@ -373,7 +217,7 @@ export default function InspirationGalleryClient({
       (entries) => { for (const e of entries) { if (e.isIntersecting) { const id = e.target.getAttribute("data-item-id"); if (id) router.prefetch(`/inspiration/${id}`); } } },
       { rootMargin: "200px" }
     );
-    for (const [, el] of cardEls.current) observer.observe(el);
+    document.querySelectorAll("[data-item-id]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [router, items]);
 
@@ -398,6 +242,7 @@ export default function InspirationGalleryClient({
     to: { top: number; left: number; width: number; height: number };
     phase: "positioning" | "animating";
   } | null>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (!scrollReady) return;
@@ -409,7 +254,7 @@ export default function InspirationGalleryClient({
       const item = items.find((it) => it._id === id);
       if (!item) return;
       const tryAnim = () => {
-        const el = cardEls.current.get(id);
+        const el = cardRefs.current.get(id);
         if (!el) return;
         const target = el.getBoundingClientRect();
         if (target.width === 0 || target.height === 0) { requestAnimationFrame(tryAnim); return; }
@@ -486,61 +331,56 @@ export default function InspirationGalleryClient({
           </div>
         ) : items.length > 0 ? (
           <>
-            <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
-              {items.map((item) => {
-                const pos = positions.get(item._id);
-                return (
-                  <div
-                    key={item._id}
-                    ref={(el) => { if (el) cardEls.current.set(item._id, el); else cardEls.current.delete(item._id); }}
-                    data-card
-                    data-item-id={item._id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => handleCardClick(item, e)}
-                    className="absolute cursor-pointer"
-                    style={pos ? {
-                      top: pos.top, left: pos.left, width: pos.width,
-                      visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
-                      transition: "none", // 不加过渡动画，避免闪烁
-                    } : { visibility: "hidden" }}
-                  >
-                    <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+            {/* CSS columns 瀑布流 — 图片预设 aspectRatio 防止高度变化触发重排 */}
+            <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 md:gap-4">
+              {items.map((item) => (
+                <div
+                  key={item._id}
+                  ref={(el) => { if (el) cardRefs.current.set(item._id, el); else cardRefs.current.delete(item._id); }}
+                  data-card
+                  data-item-id={item._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => handleCardClick(item, e)}
+                  className="mb-3 md:mb-4 break-inside-avoid cursor-pointer group"
+                  style={(returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? { visibility: "hidden" } : undefined}
+                >
+                  <div className="relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
+                    {/* 预设 aspectRatio 占位，防止 lazy load 高度变化 */}
+                    <div style={{ aspectRatio: getAspectRatio(item) }} className="w-full bg-gray-50">
                       <img
                         src={toProxyUrl(item.image_url)}
                         alt={item.prompt}
                         loading="lazy"
                         decoding="async"
-                        className="w-full block object-cover"
-                        style={item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : undefined}
-                        onLoad={onImageLoad}
+                        className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                      <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                        <p className="truncate text-xs font-medium text-white drop-shadow-md">{item.title || truncate(item.prompt, 20)}</p>
-                      </div>
-                      <button
-                        onClick={(e) => handleCardLike(e, item)}
-                        disabled={likingIds.has(item._id)}
-                        className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${item.user_liked ? "text-red-500" : "text-white hover:text-red-500"}`}
-                      >
-                        <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
-                        <span>{item.likes_count || 0}</span>
-                      </button>
                     </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                    <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      <p className="truncate text-xs font-medium text-white drop-shadow-md">{item.title || truncate(item.prompt, 20)}</p>
+                    </div>
+                    <button
+                      onClick={(e) => handleCardLike(e, item)}
+                      disabled={likingIds.has(item._id)}
+                      className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${item.user_liked ? "text-red-500" : "text-white hover:text-red-500"}`}
+                    >
+                      <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
+                      <span>{item.likes_count || 0}</span>
+                    </button>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
 
-            {/* 加载中：底部转圈，不渲染 sentinel 防止重复触发 */}
+            {/* 加载中：底部转圈 */}
             {loadingMore && (
               <div className="flex justify-center py-8">
                 <Loader2 className="size-6 animate-spin text-gray-400" />
               </div>
             )}
 
-            {/* 非加载中 + 还有更多：渲染 sentinel 等待滑到底 */}
+            {/* 非加载中 + 还有更多：sentinel */}
             {!loadingMore && hasMore && (
               <div ref={sentinelRef} className="h-1" />
             )}
