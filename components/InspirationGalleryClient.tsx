@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, useCallback, useEffect, startTransition } from "react";
+import { useState, useRef, useCallback, useEffect, startTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,44 +10,23 @@ import { Button } from "@/components/ui/button";
 import { toProxyUrl } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 
-// 延迟加载图片的占位符
-const PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23f3f4f6' width='200' height='150'/%3E%3Cpath d='M80 65 L100 45 L120 65 L140 50 L160 65 L160 100 L40 100 L40 65 Z' fill='%23d1d5db'/%3E%3Ccircle cx='70' cy='55' r='10' fill='%23d1d5db'/%3E%3C/svg%3E";
-
 interface Props {
   initialItems: InspirationItem[];
   total: number;
   currentUserId?: string;
 }
 
-interface CardPos {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
 function truncate(text: string, max: number) {
   return text.length > max ? text.slice(0, max) + "..." : text;
-}
-
-function getColumnCount(width: number) {
-  if (width >= 1024) return 4;
-  if (width >= 640) return 3;
-  return 2;
-}
-
-function getGap(width: number) {
-  return width >= 768 ? 16 : 12;
 }
 
 const STORAGE_KEY = "inspiration-gallery-page";
 const STORAGE_FIRST_ID_KEY = "inspiration-gallery-first-id";
 
 // Module-level store: survives React component remounts caused by RSC reconciliation.
-// Without this, each remount resets useState to initialItems, losing loaded-more data.
 let modItems: InspirationItem[] | null = null;
 let modPage = 1;
-let modTotal = 0; // 跟踪 total，确保 page refresh 后恢复
+let modTotal = 0;
 
 function loadSavedPage(): number | null {
   if (typeof window === "undefined") return null;
@@ -68,8 +47,7 @@ export default function InspirationGalleryClient({
 }: Props) {
   const savedPage = useRef(loadSavedPage());
 
-  // Detect return-animation on mount so the card is hidden before first paint.
-  // Sets body[data-return] so CSS can hide the card immediately (before React effects run).
+  // Return animation detection
   const returnAnimIdRef = useRef<string | null>(null);
   if (returnAnimIdRef.current === null && typeof window !== "undefined") {
     try {
@@ -77,21 +55,12 @@ export default function InspirationGalleryClient({
       if (raw) {
         const id = JSON.parse(raw).id;
         returnAnimIdRef.current = id;
-        // Sync fallback in case blocking script didn't run (e.g. first visit)
         document.body.setAttribute("data-return", id);
       }
     } catch {}
   }
 
-  // 渲染计数器（调试用）
-  const renderCountRef = useRef(0);
-  renderCountRef.current++;
-  if (renderCountRef.current <= 5 || renderCountRef.current % 50 === 0) {
-    console.log(`[Gallery] ─── render #${renderCountRef.current} ───`);
-  }
-
-  // Initialize module store from server data on first load.
-  // On Fast Refresh remount, modItems is null — detect and re-fetch if needed.
+  // Initialize module store
   let savedPageCount = 1;
   let savedFirstId: string | null = null;
   try {
@@ -99,22 +68,36 @@ export default function InspirationGalleryClient({
     savedFirstId = sessionStorage.getItem(STORAGE_FIRST_ID_KEY);
   } catch {}
 
-  console.log("[Gallery] ─── 组件初始化 ───");
-  console.log("[Gallery] savedPageCount:", savedPageCount, "savedFirstId:", savedFirstId?.substring(0, 20));
-  console.log("[Gallery] modItems isNull:", modItems === null, "modItems.length:", modItems?.length);
-  console.log("[Gallery] initialItems.length:", initialItems.length, "initialTotal:", initialTotal);
-
   if (modItems === null) {
     modItems = initialItems;
     modPage = savedPageCount > 1 ? savedPageCount : 1;
-    console.log("[Gallery] 初始化 modItems → length:", modItems.length, "modPage:", modPage);
   }
 
   const [items, setItems] = useState<InspirationItem[]>(modItems);
   const [loading, setLoading] = useState(modItems.length === 0);
-  const [imageLoadStatus, setImageLoadStatus] = useState<Map<string, 'loading' | 'loaded' | 'error'>>(new Map());
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(modTotal || initialTotal);
+  const router = useRouter();
 
-  // Persist lightweight fingerprint to sessionStorage (page count + first item ID)
+  const hasMore = total > 0 && items.length < total;
+  const isLoading = loadingMore; // 锁滚动的判断条件
+
+  // 锁定/解锁滚动
+  useEffect(() => {
+    if (isLoading) {
+      const mainEl = document.querySelector("main");
+      if (mainEl) mainEl.style.overflowY = "hidden";
+    } else {
+      const mainEl = document.querySelector("main");
+      if (mainEl) mainEl.style.overflowY = "";
+    }
+    return () => {
+      const mainEl = document.querySelector("main");
+      if (mainEl) mainEl.style.overflowY = "";
+    };
+  }, [isLoading]);
+
+  // Persist fingerprint
   useEffect(() => {
     try {
       sessionStorage.setItem(STORAGE_KEY, String(modPage));
@@ -123,29 +106,16 @@ export default function InspirationGalleryClient({
       }
     } catch {}
   }, [items]);
-  const router = useRouter();
 
   const [page, setPage] = useState(modPage);
 
-  // Recover from Fast Refresh remount: if first item doesn't match cached fingerprint,
-  // we lost data — re-fetch pages 2..N to restore.
+  // Recovery: Fast Refresh remount
   const recoveredRef = useRef(false);
   useEffect(() => {
     if (recoveredRef.current) return;
     recoveredRef.current = true;
-    console.log("[Gallery] ─── Recovery Effect ───");
-    console.log("[Gallery] savedPageCount:", savedPageCount, "savedFirstId:", savedFirstId?.substring(0, 20));
-    console.log("[Gallery] items.length:", items.length, "firstItemId:", items[0]?._id?.substring(0, 20));
-
-    if (savedPageCount <= 1 || !savedFirstId) {
-      console.log("[Gallery] Recovery: 跳过 (savedPageCount<=1 或无 savedFirstId)");
-      return;
-    }
-    if (items.length > 0 && items[0]._id === savedFirstId) {
-      console.log("[Gallery] Recovery: 跳过 (数据完整，firstItemId 匹配)");
-      return;
-    }
-    console.log("[Gallery] Recovery: 开始恢复 pages 2..", savedPageCount);
+    if (savedPageCount <= 1 || !savedFirstId) return;
+    if (items.length > 0 && items[0]._id === savedFirstId) return;
     (async () => {
       try {
         const pageNumbers = Array.from({ length: savedPageCount - 1 }, (_, i) => i + 2);
@@ -159,104 +129,70 @@ export default function InspirationGalleryClient({
           seen.add(it._id);
           return true;
         });
-        console.log("[Gallery] Recovery: fetched", allExtra.length, "items, fresh:", fresh.length);
         if (fresh.length > 0) {
           const merged = [...items, ...fresh];
           modItems = merged;
           modPage = savedPageCount;
           setItems(merged);
           setPage(savedPageCount);
-          console.log("[Gallery] Recovery: 恢复完成 → items.length:", merged.length, "modPage:", savedPageCount);
         }
-      } catch (e) {
-        console.error("[Gallery] Recovery: 失败", e);
-      }
+      } catch {}
     })();
   }, []);
 
-  // 当 initialItems 为空时（EdgeOne Pages / CloudBase），通过 API 获取数据
+  // Initial fetch when empty (CloudBase / EdgeOne)
   useEffect(() => {
-    console.log("[Gallery] ─── Initial Fetch Effect ───");
-    console.log("[Gallery] initialItems.length:", initialItems.length, "items.length:", items.length);
-    if (initialItems.length > 0 || items.length > 0) {
-      console.log("[Gallery] Initial Fetch: 跳过 (已有数据)");
-      return;
-    }
+    if (initialItems.length > 0 || items.length > 0) return;
     let cancelled = false;
-
     (async () => {
       try {
-        console.log("[Gallery] Initial Fetch: 请求 page 1...");
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
-        console.log("[Gallery] Initial Fetch: 返回", data.items?.length, "items, total:", data.total);
         if (data.items?.length) {
           modItems = data.items;
           modPage = 1;
           setItems(data.items);
-          // 从 API 响应同步 total
           if (typeof data.total === "number") {
             setTotal(data.total);
             modTotal = data.total;
-            console.log("[Gallery] Initial Fetch: setTotal:", data.total);
           }
         }
         setLoading(false);
-      } catch (e) {
-        console.error("[Gallery] Initial Fetch: 失败", e);
+      } catch {
         setLoading(false);
       }
     })();
-
     return () => { cancelled = true; };
   }, [initialItems.length]);
 
-  // Sync module store whenever state changes
+  // Sync module store
   const syncMod = useCallback((newItems: InspirationItem[], newPage: number) => {
     modItems = newItems;
     modPage = newPage;
-    // Persist page count so it survives Fast Refresh remounts
     if (newPage > 1) {
       try { sessionStorage.setItem(STORAGE_KEY, String(newPage)); } catch {}
     }
   }, []);
 
-  // If returning from detail with more pages loaded, re-fetch them.
-  // Also handles Fast Refresh remounts where modItems gets reset.
-  // Uses module-level modItems to survive RSC remounts.
+  // Back-nav recovery
   useEffect(() => {
     const targetPage = savedPage.current;
-    console.log("[Gallery] ─── Back-Nav Recovery Effect ───");
-    console.log("[Gallery] targetPage:", targetPage, "modItems.length:", modItems?.length);
-    if (!targetPage || targetPage <= 1) {
-      console.log("[Gallery] Back-Nav Recovery: 跳过 (无 savedPage 或 <=1)");
-      return;
-    }
+    if (!targetPage || targetPage <= 1) return;
     savedPage.current = null;
-
     (async () => {
       try {
-        // 同时获取 page 1 和 pages 2..N，确保 total 也被更新
         const pageNumbers = [1, ...Array.from({ length: targetPage - 1 }, (_, i) => i + 2)];
-        console.log("[Gallery] Back-Nav Recovery: 获取 pages", pageNumbers.join(","));
         const results = await Promise.all(
           pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
         );
-
-        // 从 page 1 响应获取 total
         const page1Data = results[0];
-        console.log("[Gallery] Back-Nav Recovery: page1 total:", page1Data?.total, "items:", page1Data?.items?.length);
         if (typeof page1Data?.total === "number") {
           setTotal(page1Data.total);
           modTotal = page1Data.total;
         }
-
-        // 合并所有页面数据
         const allItems = results.flatMap((r) => r.items || []);
-        console.log("[Gallery] Back-Nav Recovery: total fetched items:", allItems.length);
         if (allItems.length > 0) {
-          // 去重后合并
           const seen = new Set<string>();
           const merged = allItems.filter((it: InspirationItem) => {
             if (seen.has(it._id)) return false;
@@ -267,166 +203,91 @@ export default function InspirationGalleryClient({
           modPage = targetPage;
           setItems(merged);
           setPage(targetPage);
-          console.log("[Gallery] Back-Nav Recovery: 完成 → items.length:", merged.length, "modPage:", targetPage, "modTotal:", modTotal);
         } else {
           modPage = targetPage;
           setPage(targetPage);
         }
-      } catch (e) {
-        console.error("[Gallery] Back-Nav Recovery: 失败", e);
-      }
+      } catch {}
     })();
   }, []);
 
-  const [total, setTotal] = useState(modTotal || initialTotal);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  // 确保 total 一定有值：如果 modItems 有数据但 total 还是 0，请求 page 1 获取 count
+  // Total fallback
   useEffect(() => {
-    console.log("[Gallery] ─── Total Fallback Effect ───");
-    console.log("[Gallery] total:", total, "items.length:", items.length);
-    if (total > 0 || items.length === 0) {
-      console.log("[Gallery] Total Fallback: 跳过 (total>0 或 items 为空)");
-      return;
-    }
+    if (total > 0 || items.length === 0) return;
     let cancelled = false;
-
     (async () => {
       try {
-        console.log("[Gallery] Total Fallback: total=0 但有", items.length, "条数据，获取 total...");
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
         if (typeof data.total === "number") {
           setTotal(data.total);
           modTotal = data.total;
-          console.log("[Gallery] Total Fallback: setTotal:", data.total);
         }
-      } catch (e) {
-        console.error("[Gallery] Total Fallback: 失败", e);
-      }
+      } catch {}
     })();
-
     return () => { cancelled = true; };
   }, [total, items.length]);
-  const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
-  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
-  const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
-  const [returnAnim, setReturnAnim] = useState<{
-    id: string;
-    item: InspirationItem;
-    from: { top: number; left: number; width: number; height: number };
-    to: { top: number; left: number; width: number; height: number };
-    phase: "positioning" | "animating";
-  } | null>(null);
-  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
-  const positionsRef = useRef<Map<string, CardPos>>(new Map());
-  const renderedIdsRef = useRef<Set<string>>(new Set());
-  const [positions, setPositions] = useState<Map<string, CardPos>>(new Map());
-  const [containerHeight, setContainerHeight] = useState(0);
 
-  // 统一的布局计算函数
-  const recalculateLayout = useCallback(() => {
-    const container = containerRef.current;
-    if (!container || items.length === 0) return;
-
-    const containerWidth = container.offsetWidth;
-    const cols = getColumnCount(containerWidth);
-    const gap = getGap(containerWidth);
-    const colWidth = (containerWidth - gap * (cols - 1)) / cols;
-    const colHeights = new Array(cols).fill(0);
-    const newPositions = new Map<string, CardPos>();
-
-    for (const item of items) {
-      let minCol = 0;
-      for (let c = 1; c < cols; c++) {
-        if (colHeights[c] < colHeights[minCol]) minCol = c;
+  // Load more
+  const loadingRef = useRef(false);
+  async function loadMore() {
+    if (loadingRef.current || !hasMore || loadingMore) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const res = await fetch(`/api/inspiration?page=${nextPage}`);
+      if (res.status === 429) {
+        toast.error("加载太快了，稍后再试");
+        return;
       }
-      const el = cardRefs.current.get(item._id);
-      const height = el?.offsetHeight || 200; // 默认高度 200px
-      const left = minCol * (colWidth + gap);
-      const top = colHeights[minCol];
-      newPositions.set(item._id, { top, left, width: colWidth, height });
-      colHeights[minCol] = top + height + gap;
-    }
-
-    positionsRef.current = newPositions;
-    setPositions(new Map(newPositions));
-    setContainerHeight(Math.max(...colHeights, 0));
-  }, [items]);
-
-  // Ref callback: sync position into ref
-  const cardRefCallback = useCallback((id: string, el: HTMLDivElement | null) => {
-    if (!el) {
-      cardRefs.current.delete(id);
-      return;
-    }
-    cardRefs.current.set(id, el);
-    // 每次有新的 ref 就重新计算布局
-    requestAnimationFrame(() => recalculateLayout());
-  }, [recalculateLayout]);
-
-  // 当 items 变化时，清空 refs 并重新计算
-  useEffect(() => {
-    cardRefs.current.clear();
-    // 等待 DOM 更新后重新计算
-    const timer = setTimeout(() => recalculateLayout(), 0);
-    return () => clearTimeout(timer);
-  }, [items, recalculateLayout]);
-
-  // ResizeObserver — recalculate on container resize
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(() => {
-      recalculateLayout();
-    });
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [recalculateLayout]);
-
-  // Recalculate when images finish loading
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    // 监听所有图片的 load 和 error 事件
-    const images = container.querySelectorAll("img");
-    const handlers: Array<{ img: HTMLImageElement; handler: () => void }> = [];
-
-    images.forEach((img) => {
-      const imgEl = img as HTMLImageElement;
-      if (!imgEl.complete) {
-        const handler = () => recalculateLayout();
-        imgEl.addEventListener("load", handler, { once: true });
-        imgEl.addEventListener("error", handler, { once: true });
-        handlers.push({ img: imgEl, handler });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (typeof data.total === "number") {
+        setTotal(data.total);
+        modTotal = data.total;
       }
-    });
-
-    return () => {
-      handlers.forEach(({ img, handler }) => {
-        img.removeEventListener("load", handler);
-        img.removeEventListener("error", handler);
+      setItems((prev) => {
+        const next = [...prev, ...data.items];
+        syncMod(next, nextPage);
+        return next;
       });
-    };
-  }, [items, recalculateLayout]);
+      setPage(nextPage);
+      try { sessionStorage.setItem(STORAGE_KEY, String(nextPage)); } catch {}
+    } catch {
+      toast.error("加载失败，请重试");
+    } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
+    }
+  }
 
-  // Real-time poll: refresh page 1 periodically so new publications appear immediately.
-  // Only runs when user hasn't scrolled past page 1 (avoids resetting loaded items).
-  // Pauses when the tab is hidden to save bandwidth.
+  // Sentinel: 滑到底部才触发加载，不加 rootMargin
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          loadMore();
+        }
+      },
+      { root: document.querySelector("main"), rootMargin: "0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [page, hasMore, loadingMore]);
+
+  // Polling
   useEffect(() => {
     let pending = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const POLL_MS = 60_000;
-
     async function refresh() {
       if (pending || document.visibilityState !== "visible") return;
-      if (modPage > 1) {
-        console.log("[Gallery] Poll: 跳过 (modPage:", modPage, "> 1)");
-        return;
-      }
+      if (modPage > 1) return;
       pending = true;
       try {
         const res = await fetch("/api/inspiration?page=1");
@@ -436,52 +297,30 @@ export default function InspirationGalleryClient({
           const firstId = data.items[0]?._id;
           const currentFirstId = modItems?.[0]?._id;
           if (firstId !== currentFirstId) {
-            console.log("[Gallery] Poll: 检测到新数据，刷新 page 1");
             modItems = data.items;
             modPage = 1;
-            renderedIdsRef.current.clear();
-            cardRefs.current.clear();
             setItems(data.items);
             setPage(1);
             if (typeof data.total === "number") {
               setTotal(data.total);
               modTotal = data.total;
-              console.log("[Gallery] Poll: setTotal:", data.total);
             }
           }
         }
-      } finally {
-        pending = false;
-      }
+      } finally { pending = false; }
     }
-
-    function tick() {
-      refresh();
-      timer = setTimeout(tick, POLL_MS);
-    }
-
+    function tick() { refresh(); timer = setTimeout(tick, POLL_MS); }
     function onVisibility() {
-      if (document.visibilityState === "visible") {
-        refresh();
-        if (!timer) timer = setTimeout(tick, POLL_MS);
-      } else {
-        if (timer) { clearTimeout(timer); timer = null; }
-      }
+      if (document.visibilityState === "visible") { refresh(); if (!timer) timer = setTimeout(tick, POLL_MS); }
+      else { if (timer) { clearTimeout(timer); timer = null; } }
     }
-
-    if (document.visibilityState === "visible") {
-      refresh();
-      timer = setTimeout(tick, POLL_MS);
-    }
+    if (document.visibilityState === "visible") { refresh(); timer = setTimeout(tick, POLL_MS); }
     document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+    return () => { if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibility); };
   }, []);
 
   // Prefetch visible cards
-  useLayoutEffect(() => {
+  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -493,37 +332,42 @@ export default function InspirationGalleryClient({
       },
       { rootMargin: "200px" }
     );
-    for (const [id, el] of cardRefs.current) {
-      observer.observe(el);
+    const container = document.querySelector("[data-gallery-grid]");
+    if (container) {
+      for (const child of container.children) {
+        observer.observe(child);
+      }
     }
     return () => observer.disconnect();
   }, [router, items]);
 
-  // Restore scroll position when returning from detail page.
-  // Uses a one-shot guard (returnScrollDoneRef) that is NEVER reset by loadMore —
-  // only the sessionStorage check determines whether to restore.
+  // Scroll restore on back-nav
   const returnScrollDoneRef = useRef(false);
   const [scrollReady, setScrollReady] = useState(false);
   useEffect(() => {
     if (returnScrollDoneRef.current) return;
     const saved = sessionStorage.getItem("inspiration-scroll");
     if (saved === null) {
-      // No saved position — nothing to restore (normal loadMore / first visit)
       returnScrollDoneRef.current = true;
       setScrollReady(true);
       return;
     }
-    if (containerHeight === 0) return; // wait for masonry to calculate positions
     returnScrollDoneRef.current = true;
-    const scrollTarget = Number(saved);
     const mainEl = document.querySelector("main");
-    if (!mainEl) return;
-    mainEl.scrollTop = scrollTarget;
+    if (mainEl) mainEl.scrollTop = Number(saved);
     sessionStorage.removeItem("inspiration-scroll");
     setScrollReady(true);
-  }, [containerHeight]);
+  }, []);
 
-  // Return animation — only after scroll is restored so card positions are correct
+  // Return animation
+  const [returnAnim, setReturnAnim] = useState<{
+    id: string; item: InspirationItem;
+    from: { top: number; left: number; width: number; height: number };
+    to: { top: number; left: number; width: number; height: number };
+    phase: "positioning" | "animating";
+  } | null>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   useEffect(() => {
     if (!scrollReady) return;
     const raw = sessionStorage.getItem("inspiration-return-anim");
@@ -537,13 +381,10 @@ export default function InspirationGalleryClient({
         const el = cardRefs.current.get(id);
         if (!el) return;
         const target = el.getBoundingClientRect();
-        if (target.width === 0 || target.height === 0) {
-          requestAnimationFrame(tryAnimate);
-          return;
-        }
+        if (target.width === 0 || target.height === 0) { requestAnimationFrame(tryAnimate); return; }
         const natural = { top: target.top, left: target.left, width: target.width, height: target.height };
         returnAnimIdRef.current = null;
-        document.body.removeAttribute("data-return"); // CSS hiding no longer needed, returnAnim state takes over
+        document.body.removeAttribute("data-return");
         setReturnAnim({ id, item, from: { top, left, width, height }, to: natural, phase: "positioning" });
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -555,11 +396,17 @@ export default function InspirationGalleryClient({
     } catch {}
   }, [scrollReady, items]);
 
+  const persistPage = useCallback((currentPage: number) => {
+    try { sessionStorage.setItem(STORAGE_KEY, String(currentPage)); } catch {}
+  }, []);
+
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
+  const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
+
   function handleCardClick(item: InspirationItem, e: React.MouseEvent) {
     const card = (e.target as HTMLElement).closest("[data-card]");
     if (card) {
       const rect = card.getBoundingClientRect();
-      // Clean up any stale large keys that might fill sessionStorage
       try {
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
           const k = sessionStorage.key(i);
@@ -574,52 +421,29 @@ export default function InspirationGalleryClient({
       try {
         sessionStorage.setItem("inspiration-card-anim", JSON.stringify({
           src: toProxyUrl(item.image_url),
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
+          top: rect.top, left: rect.left, width: rect.width, height: rect.height,
         }));
       } catch {}
     }
-    // Persist page number for restoration on back-navigation
     persistPage(page);
-    // Save scroll container position for restoration on return
     const mainEl = document.querySelector("main");
     if (mainEl) {
       try { sessionStorage.setItem("inspiration-scroll", String(mainEl.scrollTop)); } catch {}
     }
-    startTransition(() => {
-      router.push(`/inspiration/${item._id}`, { scroll: false });
-    });
-  }
-
-  function handleCardHover(item: InspirationItem) {
-    router.prefetch(`/inspiration/${item._id}`);
+    startTransition(() => { router.push(`/inspiration/${item._id}`, { scroll: false }); });
   }
 
   async function handleCardLike(e: React.MouseEvent, item: InspirationItem) {
     e.stopPropagation();
-    if (!currentUserId) {
-      toast.error("请先登录");
-      return;
-    }
+    if (!currentUserId) { toast.error("请先登录"); return; }
     if (likingIds.has(item._id)) return;
-
     setLikingIds((prev) => new Set(prev).add(item._id));
     setAnimatingIds((prev) => new Set(prev).add(item._id));
-    setTimeout(() => {
-      setAnimatingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(item._id);
-        return next;
-      });
-    }, 400);
+    setTimeout(() => { setAnimatingIds((prev) => { const n = new Set(prev); n.delete(item._id); return n; }); }, 400);
     const wasLiked = item.user_liked ?? false;
     const newCount = wasLiked ? (item.likes_count || 1) - 1 : (item.likes_count || 0) + 1;
     setItems((prev) => {
-      const next = prev.map((it) =>
-        it._id === item._id ? { ...it, user_liked: !wasLiked, likes_count: newCount } : it
-      );
+      const next = prev.map((it) => it._id === item._id ? { ...it, user_liked: !wasLiked, likes_count: newCount } : it);
       syncMod(next, modPage);
       return next;
     });
@@ -628,118 +452,22 @@ export default function InspirationGalleryClient({
       if (!res.ok) throw new Error();
       const data = await res.json();
       setItems((prev) => {
-        const next = prev.map((it) =>
-          it._id === item._id ? { ...it, user_liked: data.liked, likes_count: data.likes_count } : it
-        );
+        const next = prev.map((it) => it._id === item._id ? { ...it, user_liked: data.liked, likes_count: data.likes_count } : it);
         syncMod(next, modPage);
         return next;
       });
       if (data.liked) window.dispatchEvent(new Event("task-action"));
     } catch {
       setItems((prev) => {
-        const next = prev.map((it) =>
-          it._id === item._id ? { ...it, user_liked: wasLiked, likes_count: item.likes_count || 0 } : it
-        );
+        const next = prev.map((it) => it._id === item._id ? { ...it, user_liked: wasLiked, likes_count: item.likes_count || 0 } : it);
         syncMod(next, modPage);
         return next;
       });
       toast.error("操作失败，请重试");
     } finally {
-      setLikingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(item._id);
-        return next;
-      });
+      setLikingIds((prev) => { const n = new Set(prev); n.delete(item._id); return n; });
     }
   }
-
-  const hasMore = total > 0 && items.length < total;
-
-  // 只在 hasMore 变化时打印，避免每次渲染刷屏
-  const hasMoreRef = useRef(hasMore);
-  useEffect(() => {
-    if (hasMoreRef.current !== hasMore) {
-      console.log("[Gallery] hasMore 变化:", hasMoreRef.current, "→", hasMore, "| total:", total, "items.length:", items.length);
-      hasMoreRef.current = hasMore;
-    }
-  }, [hasMore, total, items.length]);
-
-  // Persist only page number so it survives back-navigation remount
-  const persistPage = useCallback((currentPage: number) => {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, String(currentPage));
-    } catch {}
-  }, []);
-
-  const loadingRef = useRef(false);
-  async function loadMore() {
-    if (loadingRef.current || !hasMore) {
-      console.log("[Gallery] loadMore: 跳过 (loading:", loadingRef.current, "hasMore:", hasMore, ")");
-      return;
-    }
-    loadingRef.current = true;
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    console.log("[Gallery] loadMore: 请求 page", nextPage, "当前 items.length:", items.length, "total:", total);
-    try {
-      const res = await fetch(`/api/inspiration?page=${nextPage}`);
-      if (res.status === 429) {
-        toast.error("加载太快了，稍后再试");
-        return;
-      }
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      console.log("[Gallery] loadMore: 返回", data.items?.length, "items, total:", data.total);
-
-      // 从 API 响应同步 total（防止 total 过期导致提前到底）
-      if (typeof data.total === "number") {
-        setTotal(data.total);
-        modTotal = data.total;
-      }
-
-      const newIds = new Set<string>((data.items || []).map((it: InspirationItem) => it._id));
-      setNewItemIds(newIds);
-      setTimeout(() => setNewItemIds(new Set()), 500);
-      setItems((prev) => {
-        const next = [...prev, ...data.items];
-        syncMod(next, nextPage);
-        console.log("[Gallery] loadMore: setItems → new length:", next.length);
-        return next;
-      });
-      setPage(nextPage);
-      persistPage(nextPage);
-    } catch (e) {
-      console.error("[Gallery] loadMore: 失败", e);
-      toast.error("加载失败，请重试");
-    } finally {
-      loadingRef.current = false;
-      setLoadingMore(false);
-    }
-  }
-
-  // Infinite scroll: sentinel triggers loadMore when near viewport
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !loadingRef.current) {
-          // Debounce: wait 300ms after becoming visible before loading
-          // 稍微增加延迟，避免快速滚动时频繁加载
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => loadMore(), 300);
-        }
-      },
-      { root: document.querySelector("main"), rootMargin: "400px" }
-    );
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      if (timer) clearTimeout(timer);
-    };
-  }, [page, hasMore]);
 
   return (
     <div>
@@ -747,12 +475,8 @@ export default function InspirationGalleryClient({
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 md:text-2xl">
-              灵感大厅
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              发现属于你的提示词
-            </p>
+            <h1 className="text-xl font-bold text-gray-900 md:text-2xl">灵感大厅</h1>
+            <p className="mt-1 text-sm text-gray-500">发现属于你的提示词</p>
           </div>
           <Link href="/generate">
             <Button className="bg-brand hover:bg-brand-dark">
@@ -762,23 +486,27 @@ export default function InspirationGalleryClient({
           </Link>
         </div>
 
-        {/* Masonry Grid */}
+        {/* Gallery */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="size-8 animate-spin text-brand" />
             <span className="ml-3 text-gray-500">加载中...</span>
           </div>
         ) : items.length > 0 ? (
-          <div ref={containerRef} className="relative w-full" style={{ height: containerHeight || undefined }}>
-            {items.map((item) => {
-              const pos = positions.get(item._id);
-              return (
+          <>
+            {/* CSS columns masonry — 不错位、不回弹 */}
+            <div
+              data-gallery-grid
+              className="columns-2 gap-3 sm:columns-3 lg:columns-4 md:gap-4"
+            >
+              {items.map((item) => (
                 <div
                   key={item._id}
-                  ref={(el) => cardRefCallback(item._id, el)}
+                  ref={(el) => { if (el) cardRefs.current.set(item._id, el); else cardRefs.current.delete(item._id); }}
+                  data-card
+                  data-item-id={item._id}
                   role="button"
                   tabIndex={0}
-                  onMouseEnter={() => handleCardHover(item)}
                   onClick={(e) => handleCardClick(item, e)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -786,43 +514,17 @@ export default function InspirationGalleryClient({
                       router.push(`/inspiration/${item._id}`, { scroll: false });
                     }
                   }}
-                  data-card
-                  data-item-id={item._id}
-                  className="absolute cursor-pointer animate-fadein"
-                  style={pos ? {
-                    top: pos.top,
-                    left: pos.left,
-                    width: pos.width,
-                    visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
-                  } : { visibility: "hidden" }}
+                  className="mb-3 md:mb-4 break-inside-avoid cursor-pointer group"
+                  style={(returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? { visibility: "hidden" } : undefined}
                 >
-                  <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
-                    {/* 图片加载状态指示器 */}
-                    {imageLoadStatus.get(item._id) !== 'loaded' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                        <Loader2 className="size-6 animate-spin text-gray-300" />
-                      </div>
-                    )}
+                  <div className="relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
                     <img
                       src={toProxyUrl(item.image_url)}
                       alt={item.prompt}
                       loading="lazy"
                       decoding="async"
-                      className={`w-full block object-cover ${
-                        imageLoadStatus.get(item._id) === 'loaded' ? 'animate-image-fadein' : 'opacity-0'
-                      }`}
+                      className="w-full block object-cover"
                       style={item.width && item.height ? { aspectRatio: `${item.width}/${item.height}` } : undefined}
-                      onLoad={() => {
-                        setImageLoadStatus(prev => new Map(prev).set(item._id, 'loaded'));
-                        // 图片加载完成后重新计算布局
-                        requestAnimationFrame(() => recalculateLayout());
-                      }}
-                      onError={(e) => {
-                        setImageLoadStatus(prev => new Map(prev).set(item._id, 'error'));
-                        // 使用更好的错误占位符
-                        (e.target as HTMLImageElement).src =
-                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23fef2f2' width='200' height='150'/%3E%3Cpath d='M80 65 L100 45 L120 65 L140 50 L160 65 L160 100 L40 100 L40 65 Z' fill='%23fca5a5'/%3E%3Ccircle cx='70' cy='55' r='10' fill='%23fca5a5'/%3E%3Ctext x='100' y='120' text-anchor='middle' fill='%23dc2626' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E";
-                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                     <div className="absolute bottom-0 left-0 max-w-[70%] p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -834,9 +536,7 @@ export default function InspirationGalleryClient({
                       onClick={(e) => handleCardLike(e, item)}
                       disabled={likingIds.has(item._id)}
                       className={`absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs opacity-0 transition-all duration-200 group-hover:opacity-100 disabled:opacity-70 ${
-                        item.user_liked
-                          ? "text-red-500"
-                          : "text-white hover:text-red-500"
+                        item.user_liked ? "text-red-500" : "text-white hover:text-red-500"
                       }`}
                     >
                       <Heart className={`size-3.5 transition-transform ${animatingIds.has(item._id) ? "animate-heart" : ""} ${item.user_liked ? "fill-red-500" : ""}`} />
@@ -844,33 +544,28 @@ export default function InspirationGalleryClient({
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+
+            {/* Sentinel: 滑到底部触发加载更多 */}
+            {hasMore && <div ref={sentinelRef} className="flex justify-center py-8">
+              {loadingMore && <Loader2 className="size-6 animate-spin text-gray-400" />}
+            </div>}
+
+            {!hasMore && total > 0 && (
+              <p className="py-8 text-center text-xs text-gray-400">— 已经到底了 —</p>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <ImageIcon className="mb-4 size-12" />
             <p className="text-sm">暂无灵感作品</p>
-            <Link href="/generate" className="mt-4">
-              <Button>去创作</Button>
-            </Link>
+            <Link href="/generate" className="mt-4"><Button>去创作</Button></Link>
           </div>
-        )}
-
-        {/* Infinite scroll sentinel */}
-        {hasMore && (
-          <div ref={sentinelRef} className="flex justify-center py-8">
-            {loadingMore && <Loader2 className="size-6 animate-spin text-gray-400" />}
-          </div>
-        )}
-
-        {/* 只有 total > 0 时才显示"到底了"，total 为 0 说明还没获取到总数 */}
-        {!hasMore && items.length > 0 && total > 0 && (
-          <p className="py-8 text-center text-xs text-gray-400">— 已经到底了 —</p>
         )}
       </div>
 
-      {/* Return animation clone */}
+      {/* Return animation */}
       {returnAnim && createPortal(
         <div
           style={{
@@ -879,21 +574,13 @@ export default function InspirationGalleryClient({
             left: returnAnim.phase === "positioning" ? returnAnim.from.left : returnAnim.to.left,
             width: returnAnim.phase === "positioning" ? returnAnim.from.width : returnAnim.to.width,
             height: returnAnim.phase === "positioning" ? returnAnim.from.height : returnAnim.to.height,
-            zIndex: 9999,
-            overflow: "hidden",
-            borderRadius: "0.5rem",
-            transition: returnAnim.phase === "animating"
-              ? "all 0.35s cubic-bezier(0.2, 0, 0, 1)"
-              : "none",
+            zIndex: 9999, overflow: "hidden", borderRadius: "0.5rem",
+            transition: returnAnim.phase === "animating" ? "all 0.35s cubic-bezier(0.2, 0, 0, 1)" : "none",
           }}
           onTransitionEnd={() => setReturnAnim(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={toProxyUrl(returnAnim.item.image_url)}
-            alt={returnAnim.item.prompt}
-            className="w-full h-full block object-cover"
-          />
+          <img src={toProxyUrl(returnAnim.item.image_url)} alt={returnAnim.item.prompt} className="w-full h-full block object-cover" />
         </div>,
         document.body
       )}
