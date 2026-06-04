@@ -92,9 +92,17 @@ export default function InspirationGalleryClient({
     savedFirstId = sessionStorage.getItem(STORAGE_FIRST_ID_KEY);
   } catch {}
 
+  console.log("[Gallery] ─── 组件初始化 ───");
+  console.log("[Gallery] savedPageCount:", savedPageCount, "savedFirstId:", savedFirstId?.substring(0, 20));
+  console.log("[Gallery] modItems isNull:", modItems === null, "modItems.length:", modItems?.length);
+  console.log("[Gallery] initialItems.length:", initialItems.length, "initialTotal:", initialTotal);
+
   if (modItems === null) {
     modItems = initialItems;
     modPage = savedPageCount > 1 ? savedPageCount : 1;
+    console.log("[Gallery] 初始化 modItems → length:", modItems.length, "modPage:", modPage);
+  } else {
+    console.log("[Gallery] modItems 已存在，跳过初始化 → length:", modItems.length, "modPage:", modPage);
   }
 
   const [items, setItems] = useState<InspirationItem[]>(modItems);
@@ -120,8 +128,19 @@ export default function InspirationGalleryClient({
   useEffect(() => {
     if (recoveredRef.current) return;
     recoveredRef.current = true;
-    if (savedPageCount <= 1 || !savedFirstId) return;
-    if (items.length > 0 && items[0]._id === savedFirstId) return; // data intact
+    console.log("[Gallery] ─── Recovery Effect ───");
+    console.log("[Gallery] savedPageCount:", savedPageCount, "savedFirstId:", savedFirstId?.substring(0, 20));
+    console.log("[Gallery] items.length:", items.length, "firstItemId:", items[0]?._id?.substring(0, 20));
+
+    if (savedPageCount <= 1 || !savedFirstId) {
+      console.log("[Gallery] Recovery: 跳过 (savedPageCount<=1 或无 savedFirstId)");
+      return;
+    }
+    if (items.length > 0 && items[0]._id === savedFirstId) {
+      console.log("[Gallery] Recovery: 跳过 (数据完整，firstItemId 匹配)");
+      return;
+    }
+    console.log("[Gallery] Recovery: 开始恢复 pages 2..", savedPageCount);
     (async () => {
       try {
         const pageNumbers = Array.from({ length: savedPageCount - 1 }, (_, i) => i + 2);
@@ -135,27 +154,38 @@ export default function InspirationGalleryClient({
           seen.add(it._id);
           return true;
         });
+        console.log("[Gallery] Recovery: fetched", allExtra.length, "items, fresh:", fresh.length);
         if (fresh.length > 0) {
           const merged = [...items, ...fresh];
           modItems = merged;
           modPage = savedPageCount;
           setItems(merged);
           setPage(savedPageCount);
+          console.log("[Gallery] Recovery: 恢复完成 → items.length:", merged.length, "modPage:", savedPageCount);
         }
-      } catch {}
+      } catch (e) {
+        console.error("[Gallery] Recovery: 失败", e);
+      }
     })();
   }, []);
 
   // 当 initialItems 为空时（EdgeOne Pages / CloudBase），通过 API 获取数据
   useEffect(() => {
-    if (initialItems.length > 0 || items.length > 0) return;
+    console.log("[Gallery] ─── Initial Fetch Effect ───");
+    console.log("[Gallery] initialItems.length:", initialItems.length, "items.length:", items.length);
+    if (initialItems.length > 0 || items.length > 0) {
+      console.log("[Gallery] Initial Fetch: 跳过 (已有数据)");
+      return;
+    }
     let cancelled = false;
 
     (async () => {
       try {
+        console.log("[Gallery] Initial Fetch: 请求 page 1...");
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
+        console.log("[Gallery] Initial Fetch: 返回", data.items?.length, "items, total:", data.total);
         if (data.items?.length) {
           modItems = data.items;
           modPage = 1;
@@ -164,11 +194,12 @@ export default function InspirationGalleryClient({
           if (typeof data.total === "number") {
             setTotal(data.total);
             modTotal = data.total;
+            console.log("[Gallery] Initial Fetch: setTotal:", data.total);
           }
         }
         setLoading(false);
       } catch (e) {
-        console.error("Failed to load inspiration gallery:", e);
+        console.error("[Gallery] Initial Fetch: 失败", e);
         setLoading(false);
       }
     })();
@@ -191,19 +222,26 @@ export default function InspirationGalleryClient({
   // Uses module-level modItems to survive RSC remounts.
   useEffect(() => {
     const targetPage = savedPage.current;
-    if (!targetPage || targetPage <= 1) return;
+    console.log("[Gallery] ─── Back-Nav Recovery Effect ───");
+    console.log("[Gallery] targetPage:", targetPage, "modItems.length:", modItems?.length);
+    if (!targetPage || targetPage <= 1) {
+      console.log("[Gallery] Back-Nav Recovery: 跳过 (无 savedPage 或 <=1)");
+      return;
+    }
     savedPage.current = null;
 
     (async () => {
       try {
         // 同时获取 page 1 和 pages 2..N，确保 total 也被更新
         const pageNumbers = [1, ...Array.from({ length: targetPage - 1 }, (_, i) => i + 2)];
+        console.log("[Gallery] Back-Nav Recovery: 获取 pages", pageNumbers.join(","));
         const results = await Promise.all(
           pageNumbers.map((p) => fetch(`/api/inspiration?page=${p}`).then((r) => r.json()))
         );
 
         // 从 page 1 响应获取 total
         const page1Data = results[0];
+        console.log("[Gallery] Back-Nav Recovery: page1 total:", page1Data?.total, "items:", page1Data?.items?.length);
         if (typeof page1Data?.total === "number") {
           setTotal(page1Data.total);
           modTotal = page1Data.total;
@@ -211,6 +249,7 @@ export default function InspirationGalleryClient({
 
         // 合并所有页面数据
         const allItems = results.flatMap((r) => r.items || []);
+        console.log("[Gallery] Back-Nav Recovery: total fetched items:", allItems.length);
         if (allItems.length > 0) {
           // 去重后合并
           const seen = new Set<string>();
@@ -223,12 +262,13 @@ export default function InspirationGalleryClient({
           modPage = targetPage;
           setItems(merged);
           setPage(targetPage);
+          console.log("[Gallery] Back-Nav Recovery: 完成 → items.length:", merged.length, "modPage:", targetPage, "modTotal:", modTotal);
         } else {
           modPage = targetPage;
           setPage(targetPage);
         }
       } catch (e) {
-        console.error("[Gallery] re-fetch error:", e);
+        console.error("[Gallery] Back-Nav Recovery: 失败", e);
       }
     })();
   }, []);
@@ -238,19 +278,28 @@ export default function InspirationGalleryClient({
 
   // 确保 total 一定有值：如果 modItems 有数据但 total 还是 0，请求 page 1 获取 count
   useEffect(() => {
-    if (total > 0 || items.length === 0) return;
+    console.log("[Gallery] ─── Total Fallback Effect ───");
+    console.log("[Gallery] total:", total, "items.length:", items.length);
+    if (total > 0 || items.length === 0) {
+      console.log("[Gallery] Total Fallback: 跳过 (total>0 或 items 为空)");
+      return;
+    }
     let cancelled = false;
 
     (async () => {
       try {
+        console.log("[Gallery] Total Fallback: total=0 但有", items.length, "条数据，获取 total...");
         const res = await fetch("/api/inspiration?page=1");
         if (cancelled || !res.ok) return;
         const data = await res.json();
         if (typeof data.total === "number") {
           setTotal(data.total);
           modTotal = data.total;
+          console.log("[Gallery] Total Fallback: setTotal:", data.total);
         }
-      } catch {}
+      } catch (e) {
+        console.error("[Gallery] Total Fallback: 失败", e);
+      }
     })();
 
     return () => { cancelled = true; };
@@ -369,7 +418,10 @@ export default function InspirationGalleryClient({
 
     async function refresh() {
       if (pending || document.visibilityState !== "visible") return;
-      if (modPage > 1) return;
+      if (modPage > 1) {
+        console.log("[Gallery] Poll: 跳过 (modPage:", modPage, "> 1)");
+        return;
+      }
       pending = true;
       try {
         const res = await fetch("/api/inspiration?page=1");
@@ -379,6 +431,7 @@ export default function InspirationGalleryClient({
           const firstId = data.items[0]?._id;
           const currentFirstId = modItems?.[0]?._id;
           if (firstId !== currentFirstId) {
+            console.log("[Gallery] Poll: 检测到新数据，刷新 page 1");
             modItems = data.items;
             modPage = 1;
             renderedIdsRef.current.clear();
@@ -388,6 +441,7 @@ export default function InspirationGalleryClient({
             if (typeof data.total === "number") {
               setTotal(data.total);
               modTotal = data.total;
+              console.log("[Gallery] Poll: setTotal:", data.total);
             }
           }
         }
@@ -595,6 +649,7 @@ export default function InspirationGalleryClient({
   }
 
   const hasMore = total > 0 && items.length < total;
+  console.log("[Gallery] hasMore:", hasMore, "= (total:", total, "> 0 &&", items.length, "< total)");
 
   // Persist only page number so it survives back-navigation remount
   const persistPage = useCallback((currentPage: number) => {
@@ -605,18 +660,23 @@ export default function InspirationGalleryClient({
 
   const loadingRef = useRef(false);
   async function loadMore() {
-    if (loadingRef.current || !hasMore) return;
+    if (loadingRef.current || !hasMore) {
+      console.log("[Gallery] loadMore: 跳过 (loading:", loadingRef.current, "hasMore:", hasMore, ")");
+      return;
+    }
     loadingRef.current = true;
     setLoadingMore(true);
+    const nextPage = page + 1;
+    console.log("[Gallery] loadMore: 请求 page", nextPage, "当前 items.length:", items.length, "total:", total);
     try {
-      const res = await fetch(`/api/inspiration?page=${page + 1}`);
+      const res = await fetch(`/api/inspiration?page=${nextPage}`);
       if (res.status === 429) {
         toast.error("加载太快了，稍后再试");
         return;
       }
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const newPage = page + 1;
+      console.log("[Gallery] loadMore: 返回", data.items?.length, "items, total:", data.total);
 
       // 从 API 响应同步 total（防止 total 过期导致提前到底）
       if (typeof data.total === "number") {
@@ -629,12 +689,14 @@ export default function InspirationGalleryClient({
       setTimeout(() => setNewItemIds(new Set()), 500);
       setItems((prev) => {
         const next = [...prev, ...data.items];
-        syncMod(next, newPage);
+        syncMod(next, nextPage);
+        console.log("[Gallery] loadMore: setItems → new length:", next.length);
         return next;
       });
-      setPage(newPage);
-      persistPage(newPage);
-    } catch {
+      setPage(nextPage);
+      persistPage(nextPage);
+    } catch (e) {
+      console.error("[Gallery] loadMore: 失败", e);
       toast.error("加载失败，请重试");
     } finally {
       loadingRef.current = false;
