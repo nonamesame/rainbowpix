@@ -22,7 +22,7 @@ export async function generateImage(
       formData.append("image", blob, `reference-${i + 1}.png`);
     }
     formData.append("prompt", prompt);
-    formData.append("model", "gpt-image-2");
+    formData.append("model", "gpt-image-2-1k");
     formData.append("n", "1");
     formData.append("size", size);
     formData.append("response_format", "b64_json");
@@ -51,7 +51,7 @@ export async function generateImage(
   }
 
   // 无参考图时使用 /images/generations
-  const body: Record<string, any> = { prompt, model: "gpt-image-2", n: 1, size, response_format: "b64_json" };
+  const body: Record<string, any> = { prompt, model: "gpt-image-2-1k", n: 1, size, response_format: "b64_json" };
 
   const response = await axios.post(
     `${process.env.HMVI_BASE_URL}/images/generations`,

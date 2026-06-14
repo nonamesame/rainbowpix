@@ -29,7 +29,7 @@ interface PersistedState {
 }
 
 const DEFAULTS: PersistedState = {
-  model: "gpt-image-2",
+  model: "gpt-image-2-1k",
   prompt: "",
   size: "1:1",
   result: null,

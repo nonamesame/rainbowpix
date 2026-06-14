@@ -24,7 +24,7 @@ const SIZE_MAP: Record<string, Record<string, { w: number; h: number }>> = {
   "jimeng-4.0": {
     "1:1": { w: 1024, h: 1024 },
   },
-  "gpt-image-2": {
+  "gpt-image-2-1k": {
     "1:1": { w: 1024, h: 1024 },
     "3:4": { w: 1024, h: 1792 },
     "4:3": { w: 1792, h: 1024 },
@@ -85,7 +85,7 @@ export const models: Model[] = [
     hidden: true,
   },
   {
-    id: "gpt-image-2",
+    id: "gpt-image-2-1k",
     name: "GPT Image 2",
     description: "OpenAI推出的图像生成模型，具有强大的理解能力",
     supportedAspectRatios: ["1:1", "3:4", "4:3", "9:16", "16:9"],

@@ -4,6 +4,8 @@ import { serverDb } from "@/lib/cloudbase/server";
 const MAX_REDEEM_ATTEMPTS_PER_MINUTE = 5;
 const MAX_REDEEM_PER_USER_WEEKLY = 10;
 const DEDUCT_MAX_RETRIES = 3;
+const REFUND_MAX_RETRIES = 3;
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 幂等键 5 分钟过期
 
 /**
  * 生成一个 64 位随机十六进制密钥 (256 bit 随机空间)
@@ -226,6 +228,47 @@ export async function checkCredits(
 }
 
 /**
+ * 检查幂等键是否已使用（防止重复扣费）
+ * 返回 true 表示该请求已处理过，应跳过
+ */
+export async function isIdempotentProcessed(key: string): Promise<boolean> {
+  try {
+    const { data } = await serverDb
+      .collection("idempotency_keys")
+      .where({ key })
+      .limit(1)
+      .get();
+    const doc = data?.[0];
+    if (!doc) return false;
+    // 检查是否过期
+    const createdAt = new Date(doc.created_at).getTime();
+    if (Date.now() - createdAt > IDEMPOTENCY_TTL_MS) {
+      // 过期了，删除旧记录
+      await serverDb.collection("idempotency_keys").doc(doc._id).delete();
+      return false;
+    }
+    return true;
+  } catch {
+    // 集合不存在等情况，不阻止请求
+    return false;
+  }
+}
+
+/**
+ * 记录幂等键（标记请求已处理）
+ */
+export async function recordIdempotentKey(key: string): Promise<void> {
+  try {
+    await serverDb.collection("idempotency_keys").add({
+      key,
+      created_at: new Date().toISOString(),
+    });
+  } catch {
+    // 集合不存在等情况，静默失败
+  }
+}
+
+/**
  * 扣减用户额度（带重试的并发安全版本）
  *
  * 并发问题：两个请求同时 checkCredits(balance=1) 都通过，
@@ -344,7 +387,7 @@ export async function addCredits(
 }
 
 /**
- * 回滚额度（生成失败时补偿）
+ * 回滚额度（生成失败时补偿）— 带重试
  */
 export async function refundCredits(
   userId: string,
@@ -354,22 +397,29 @@ export async function refundCredits(
 
   console.warn(`[credits] refundCredits: user=${userId}, amount=${amount}`);
 
-  try {
-    const { data } = await serverDb
-      .collection("user_credits")
-      .where({ user_id: userId })
-      .limit(1)
-      .get();
+  for (let attempt = 0; attempt < REFUND_MAX_RETRIES; attempt++) {
+    try {
+      const { data } = await serverDb
+        .collection("user_credits")
+        .where({ user_id: userId })
+        .limit(1)
+        .get();
 
-    const doc = data?.[0];
-    if (doc) {
-      await serverDb.collection("user_credits").doc(doc._id).update({
-        balance: serverDb.command.inc(amount),
-        total_used: serverDb.command.inc(-amount),
-        updated_at: new Date().toISOString(),
-      });
+      const doc = data?.[0];
+      if (doc) {
+        await serverDb.collection("user_credits").doc(doc._id).update({
+          balance: serverDb.command.inc(amount),
+          total_used: serverDb.command.inc(-amount),
+          updated_at: new Date().toISOString(),
+        });
+      }
+      return; // 成功，退出
+    } catch (err) {
+      console.error(`[credits] refundCredits attempt ${attempt + 1} failed:`, err);
+      if (attempt === REFUND_MAX_RETRIES - 1) {
+        // 最后一次重试仍然失败，记录严重错误
+        console.error(`[credits] refundCredits FAILED after ${REFUND_MAX_RETRIES} attempts: user=${userId}, amount=${amount}`);
+      }
     }
-  } catch (err) {
-    console.error("[credits] refundCredits failed:", err);
   }
 }

@@ -18,6 +18,29 @@ import { toProxyUrl } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 import InspirationComments from "./InspirationComments";
 
+/** 在页面卸载前创建一个固定定位的图片覆盖层，防止返回时白屏 */
+function createExitOverlay(imageUrl: string, rect: DOMRect) {
+  const overlay = document.createElement("div");
+  overlay.id = "return-anim-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: ${rect.top}px;
+    left: ${rect.left}px;
+    width: ${rect.width}px;
+    height: ${rect.height}px;
+    z-index: 9998;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: #f3f4f6;
+    transition: none;
+  `;
+  const img = document.createElement("img");
+  img.src = imageUrl;
+  img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+}
+
 interface Props {
   item: InspirationItem;
   currentUserId?: string;
@@ -212,6 +235,8 @@ export default function InspirationDetailClient({
                   width: rect.width,
                   height: rect.height,
                 }));
+                // 创建固定定位的图片覆盖层，防止页面切换时白屏
+                createExitOverlay(toProxyUrl(item.image_url), rect);
               }
               router.push("/");
             }}

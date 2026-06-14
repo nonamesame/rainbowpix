@@ -41,9 +41,9 @@ export async function generateImage(
   console.log("[modelscope] task submitted:", taskId);
 
   // 2. 轮询任务状态（最多等5分钟）
-  const maxAttempts = 60; // 60 * 5s = 5min
+  const maxAttempts = 150; // 150 * 2s = 5min
   for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 2000));
 
     const result = await axios.get(`${BASE_URL}v1/tasks/${taskId}`, {
       headers: {

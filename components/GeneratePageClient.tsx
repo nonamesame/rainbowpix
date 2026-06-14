@@ -559,7 +559,7 @@ export default function GeneratePageClient({
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
             <Select value={model} onValueChange={handleModelChange}>
               <SelectTrigger className="h-8 w-auto rounded-full border-brand-light bg-brand-light/50 px-3 text-xs font-medium text-brand-dark hover:bg-brand-light hover:text-brand-dark">
-                <SelectValue />
+                <SelectValue>{models.find((m) => m.id === model)?.name || model}</SelectValue>
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 p-1 [&_[data-slot=select-item]]:pr-1.5 [&_[class*=absolute][class*=right-2]]:hidden">
                 {models.filter((m) => !m.hidden).map((m) => (

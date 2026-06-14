@@ -1031,7 +1031,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
                 >
                   <option value="jimeng-4.0">即梦 4.0</option>
                   <option value="jimeng-3.0">即梦 3.0</option>
-                  <option value="gpt-image-2">GPT Image 2</option>
+                  <option value="gpt-image-2-1k">GPT Image 2</option>
                   <option value="管理员上传">管理员上传</option>
                 </select>
               </div>

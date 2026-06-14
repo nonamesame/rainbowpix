@@ -389,9 +389,13 @@ export default function InspirationGalleryClient({
         if (!el) return;
         const t = el.getBoundingClientRect();
         if (t.width === 0 || t.height === 0) { requestAnimationFrame(tryAnim); return; }
+        // 移除详情页创建的覆盖层
+        const overlay = document.getElementById("return-anim-overlay");
+        if (overlay) overlay.remove();
+        // 先设置动画状态，再清除 ref（避免闪烁）
+        setReturnAnim({ id, item, from: { top, left, width, height }, to: { top: t.top, left: t.left, width: t.width, height: t.height }, phase: "positioning" });
         returnAnimIdRef.current = null;
         document.body.removeAttribute("data-return");
-        setReturnAnim({ id, item, from: { top, left, width, height }, to: { top: t.top, left: t.left, width: t.width, height: t.height }, phase: "positioning" });
         requestAnimationFrame(() => requestAnimationFrame(() => setReturnAnim((p) => p ? { ...p, phase: "animating" } : null)));
       };
       requestAnimationFrame(() => requestAnimationFrame(tryAnim));
@@ -493,7 +497,7 @@ export default function InspirationGalleryClient({
                     style={pos ? {
                       top: pos.top, left: pos.left, width: pos.width,
                       "--card-delay": `${delay}ms`,
-                      visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id) ? "hidden" : "visible",
+                      visibility: (returnAnim?.id === item._id || returnAnimIdRef.current === item._id || document.body.hasAttribute("data-return")) ? "hidden" : "visible",
                     } as React.CSSProperties : { visibility: "hidden" }}
                   >
                     <div className="group relative overflow-hidden rounded-lg bg-gray-100 md:rounded-xl">
@@ -576,7 +580,15 @@ export default function InspirationGalleryClient({
             zIndex: 9999, overflow: "hidden", borderRadius: "0.5rem",
             transition: returnAnim.phase === "animating" ? "all 0.35s cubic-bezier(0.2, 0, 0, 1)" : "none",
           }}
-          onTransitionEnd={() => setReturnAnim(null)}
+          onTransitionEnd={() => {
+            // 动画完成后清理所有状态
+            returnAnimIdRef.current = null;
+            document.body.removeAttribute("data-return");
+            // 安全网：确保覆盖层被移除
+            const overlay = document.getElementById("return-anim-overlay");
+            if (overlay) overlay.remove();
+            setReturnAnim(null);
+          }}
         >
           <img src={toProxyUrl(returnAnim.item.image_url)} alt={returnAnim.item.prompt} className="w-full h-full block object-cover" />
         </div>,

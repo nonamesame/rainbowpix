@@ -8,7 +8,8 @@ import { generateImage as generateJimeng } from "@/lib/jimeng";
 import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
 import { generateImage as generateModelScope } from "@/lib/modelscope";
 import { getPixelSize, models } from "@/lib/models";
-import { deductCredits, refundCredits } from "@/lib/credits";
+import { deductCredits, refundCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
+import { createHash } from "crypto";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -85,6 +86,30 @@ export async function POST(request: NextRequest) {
 
     if (!prompt) {
       return Response.json({ error: "prompt 为必填参数" }, { status: 400 });
+    }
+
+    // 2.2 幂等性检查（防止网络重试导致重复扣费）
+    // 用 user + model + prompt + aspectRatio 生成唯一 key，5 分钟内重复请求会直接返回
+    const idempotencyPayload = `${user!.uid}:${model}:${prompt}:${aspectRatio}`;
+    const idempotencyKey = createHash("sha256").update(idempotencyPayload).digest("hex");
+
+    if (await isIdempotentProcessed(idempotencyKey)) {
+      // 已处理过，查询最近一次生成结果返回
+      const recentGen = await serverDb
+        .collection("generations")
+        .where({ user_id: user!.uid, model })
+        .order("created_at", "desc")
+        .limit(1)
+        .get();
+      const last = recentGen.data?.[0];
+      if (last) {
+        return Response.json({
+          success: true,
+          image_url: last.image_url,
+          generation_id: last._id,
+        });
+      }
+      return Response.json({ error: "请勿重复提交相同请求" }, { status: 429 });
     }
 
     // 2.5 造相每日生成量限制（每用户每天50次）
@@ -184,8 +209,8 @@ export async function POST(request: NextRequest) {
         imageUrl = await generateJimeng(prompt, "", width, height, referenceImagesBase64[0], undefined, "v4");
         break;
       }
-      case "gpt-image-2": {
-        console.log("[generate] gpt-image-2 prompt:", prompt, "size:", `${width}x${height}`, "refCount:", referenceImagesBase64.length);
+      case "gpt-image-2-1k": {
+        console.log("[generate] gpt-image-2-1k prompt:", prompt, "size:", `${width}x${height}`, "refCount:", referenceImagesBase64.length);
         imageUrl = await generateHMVI(prompt, `${width}x${height}`, referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined);
         break;
       }
@@ -225,7 +250,10 @@ export async function POST(request: NextRequest) {
     });
     const id = addResult.id!;
 
-    // 9. 返回永久 URL
+    // 9. 记录幂等键（标记此请求已处理完成）
+    await recordIdempotentKey(idempotencyKey);
+
+    // 10. 返回永久 URL
     return Response.json({
       success: true,
       image_url: permanentUrl,
