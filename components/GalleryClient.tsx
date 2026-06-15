@@ -13,7 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { models } from "@/lib/models";
+import { models, getModelName } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 
 interface Generation {
@@ -35,10 +35,6 @@ interface Props {
 }
 
 const PAGE_SIZE = 12;
-
-function getModelName(modelId: string) {
-  return models.find((m) => m.id === modelId)?.name || modelId;
-}
 
 function formatDate(iso: string) {
   const d = new Date(iso);

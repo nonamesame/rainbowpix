@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ success: true, existed: false });
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 500 });
+    console.error("Record registration error:", error);
+    return Response.json({ error: "记录注册信息失败" }, { status: 500 });
   }
 }

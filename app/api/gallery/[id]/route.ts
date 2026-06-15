@@ -27,7 +27,7 @@ export async function GET(
     return Response.json({ item: data[0] });
   } catch (err: any) {
     console.error("[gallery:get] error:", err?.message || err);
-    return Response.json({ error: err?.message || "查询失败" }, { status: 500 });
+    return Response.json({ error: "查询失败" }, { status: 500 });
   }
 }
 
@@ -63,6 +63,6 @@ export async function DELETE(
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[gallery:delete] error:", err?.message || err);
-    return new Response(JSON.stringify({ error: err?.message || "删除失败" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "删除失败" }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 }

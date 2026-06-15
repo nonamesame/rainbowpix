@@ -106,6 +106,32 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
+    // Check username uniqueness (excluding current user)
+    try {
+      const { total } = await serverDb
+        .collection("users")
+        .where({ username })
+        .count();
+      // If username exists and belongs to another user
+      if (total > 0) {
+        const { data } = await serverDb
+          .collection("users")
+          .where({ username })
+          .limit(1)
+          .get();
+        if (data?.[0]?.uid !== user.uid) {
+          return Response.json(
+            { error: "用户名已被占用" },
+            { status: 400 }
+          );
+        }
+      }
+    } catch (error) {
+      // If collection doesn't exist, skip check
+      if (!isCollectionNotExist(error)) {
+        console.error("Check username uniqueness error:", error);
+      }
+    }
   }
 
   try {

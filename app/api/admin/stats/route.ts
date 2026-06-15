@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       todayGenerations: todayGenerations ?? 0,
     });
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 500 });
+    console.error("Stats error:", error);
+    return Response.json({ error: "获取统计数据失败" }, { status: 500 });
   }
 }

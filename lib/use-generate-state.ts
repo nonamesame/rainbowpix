@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { models } from "@/lib/models";
+import { models, mapModelId } from "@/lib/models";
 
 const HIDDEN_MODELS = new Set(models.filter((m) => m.hidden).map((m) => m.id));
 
@@ -57,7 +57,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
   const [hydrated, setHydrated] = useState(false);
 
   // If URL params are present, use them as initial values directly (no useEffect delay)
-  const [model, setModel] = useState(hasUrlParams && initial?.model ? initial.model : DEFAULTS.model);
+  const [model, setModel] = useState(hasUrlParams && initial?.model ? mapModelId(initial.model) : DEFAULTS.model);
   const [prompt, setPrompt] = useState(hasUrlParams && initial?.prompt ? initial.prompt : DEFAULTS.prompt);
   const [size, setSize] = useState(hasUrlParams && initial?.size ? initial.size : DEFAULTS.size);
   const [result, setResult] = useState<GenerateResult | null>(DEFAULTS.result);
@@ -73,7 +73,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
     }
     const saved = load();
     if (saved) {
-      if (saved.model && !HIDDEN_MODELS.has(saved.model)) setModel(saved.model);
+      if (saved.model && !HIDDEN_MODELS.has(saved.model)) setModel(mapModelId(saved.model));
       if (saved.prompt) setPrompt(saved.prompt);
       if (saved.size) setSize(saved.size);
       if (saved.result) setResult(saved.result);

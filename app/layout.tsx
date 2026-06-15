@@ -41,6 +41,17 @@ export default function RootLayout({
           Reads sessionStorage for return-animation ID and hides the target card via CSS
           before the browser paints the restored page.
         */}
+        {/*
+          Chunk loading failure recovery: auto-reload on dynamic import errors
+          (common after redeployment when old chunks are no longer served).
+        */}
+        <Script
+          id="chunk-recovery"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.addEventListener("error",function(e){if(e.message&&e.message.indexOf("Loading chunk")>-1&&!window.__chunkReloaded){window.__chunkReloaded=1;window.location.reload();}});`,
+          }}
+        />
         <Script
           id="inspiration-return-guard"
           strategy="beforeInteractive"

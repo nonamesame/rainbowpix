@@ -75,11 +75,16 @@ export function verifyUserCookie(signedCookie: string): UserPayload | null {
  * Extract and verify user from a NextRequest's tcb_user cookie.
  * Returns the user payload if valid, null otherwise.
  * This is the unified auth check for all API routes.
+ * Falls back to legacy unsigned cookie for backward compatibility.
  */
 export function getUserFromRequest(request: NextRequest): UserPayload | null {
-  const signedCookie = request.cookies.get("tcb_user")?.value;
-  if (!signedCookie) return null;
-  return verifyUserCookie(signedCookie);
+  const cookieValue = request.cookies.get("tcb_user")?.value;
+  if (!cookieValue) return null;
+  // Try signed cookie first
+  const signed = verifyUserCookie(cookieValue);
+  if (signed) return signed;
+  // Fallback: legacy unsigned base64 cookie
+  return decodeLegacyCookie(cookieValue);
 }
 
 /**

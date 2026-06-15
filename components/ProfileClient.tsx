@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { models } from "@/lib/models";
+import { models, getModelName } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import { getAuth } from "@/lib/cloudbase/client";
 import type { TcbUser } from "@/lib/cloudbase/types";
@@ -60,10 +60,6 @@ interface Props {
 }
 
 type Tab = "works" | "published" | "liked" | "settings";
-
-function getModelName(modelId: string) {
-  return models.find((m) => m.id === modelId)?.name || modelId;
-}
 
 function formatDate(iso: string) {
   if (!iso) return "";

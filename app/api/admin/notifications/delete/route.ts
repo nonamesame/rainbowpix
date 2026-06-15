@@ -18,6 +18,7 @@ export async function DELETE(request: NextRequest) {
     await logAdminAction("delete_notification", { id }, request);
     return Response.json({ success: true });
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 500 });
+    console.error("Delete notification error:", error);
+    return Response.json({ error: "删除通知失败" }, { status: 500 });
   }
 }

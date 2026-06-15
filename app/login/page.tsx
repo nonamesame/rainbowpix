@@ -224,8 +224,20 @@ function LoginPageInner() {
       toast.error("请填写完整信息");
       return;
     }
-    if (!/^[一-龥a-zA-Z0-9_-]{2,20}$/.test(regUsername)) {
-      toast.error("用户名需2-20位，仅支持中英文、数字、下划线和横杠");
+    if (!/^[a-z][0-9a-z_-]{5,24}$/.test(regUsername)) {
+      toast.error("用户名需6-25位，以小写字母开头，仅支持小写字母、数字、下划线和横杠");
+      return;
+    }
+    // 检查用户名是否已存在
+    try {
+      const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(regUsername)}`);
+      const data = await res.json();
+      if (!data.available) {
+        toast.error(data.error || "用户名已被占用");
+        return;
+      }
+    } catch {
+      toast.error("检查用户名失败，请稍后重试");
       return;
     }
     if (regPassword !== regConfirmPassword) {
@@ -473,7 +485,7 @@ function LoginPageInner() {
                 <form onSubmit={handleRegister} className="flex flex-col gap-4">
                   <Input
                     type="text"
-                    placeholder="2-20位，支持中英文、数字、下划线、横杠"
+                    placeholder="6-25位，以小写字母开头，支持小写字母、数字、下划线、横杠"
                     value={regUsername}
                     onChange={(e) => setRegUsername(e.target.value)}
                     className="h-11 rounded-xl border-[#e5e7eb] focus:border-brand focus:ring-brand/30"

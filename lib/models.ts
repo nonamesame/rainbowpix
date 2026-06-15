@@ -63,6 +63,28 @@ export function widthHeightToAspectRatio(width: number, height: number): string 
   return "1:1";
 }
 
+// 模型映射：将旧的 model ID 映射到当前可用的 model ID
+const MODEL_MAP: Record<string, string> = {
+  "gpt-image-2": "gpt-image-2-1k",
+};
+
+/**
+ * 将旧的 model ID 映射到当前可用的 model ID
+ * 用于处理历史数据中的模型 ID
+ */
+export function mapModelId(modelId: string): string {
+  return MODEL_MAP[modelId] || modelId;
+}
+
+/**
+ * 获取模型显示名称
+ * 如果模型 ID 不存在于 models 数组中，会先尝试映射后再查找
+ */
+export function getModelName(modelId: string): string {
+  const mappedId = mapModelId(modelId);
+  return models.find((m) => m.id === mappedId)?.name || modelId;
+}
+
 export const models: Model[] = [
   {
     id: "jimeng-3.0",

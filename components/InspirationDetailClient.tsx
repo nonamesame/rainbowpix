@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { models, widthHeightToAspectRatio } from "@/lib/models";
+import { models, widthHeightToAspectRatio, getModelName, mapModelId } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import type { InspirationItem } from "@/lib/inspiration";
 import InspirationComments from "./InspirationComments";
@@ -44,10 +44,6 @@ function createExitOverlay(imageUrl: string, rect: DOMRect) {
 interface Props {
   item: InspirationItem;
   currentUserId?: string;
-}
-
-function getModelName(modelId: string) {
-  return models.find((m) => m.id === modelId)?.name || modelId;
 }
 
 function parseReferenceImages(ref?: string): string[] {
@@ -177,9 +173,12 @@ export default function InspirationDetailClient({
   }
 
   function handleMakeSame() {
+    // 模型映射：将旧的 model ID 映射到当前可用的 model ID
+    const modelId = mapModelId(item.model);
+
     const params = new URLSearchParams({
       prompt: item.prompt,
-      model: item.model,
+      model: modelId,
     });
     const refImages = parseReferenceImages(item.reference_image_url);
     if (refImages.length > 0) {

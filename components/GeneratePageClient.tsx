@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import RedeemDialog from "@/components/RedeemDialog";
 import { useCreditBalance } from "@/hooks/useCreditBalance";
-import { models, ASPECT_RATIOS, getPixelSize } from "@/lib/models";
+import { models, ASPECT_RATIOS, getPixelSize, mapModelId } from "@/lib/models";
 import { toProxyUrl } from "@/lib/image-url";
 import { useGenerateState } from "@/lib/use-generate-state";
 
@@ -209,7 +209,7 @@ export default function GeneratePageClient({
     }
   }, []);
 
-  const currentModel = models.find((m) => m.id === model);
+  const currentModel = models.find((m) => m.id === mapModelId(model));
   const supportedRatios = currentModel?.supportedAspectRatios || ["1:1"];
 
   function handleModelChange(value: string | null) {
@@ -311,7 +311,7 @@ export default function GeneratePageClient({
     }
 
     // 客户端额度预检
-    const currentModel = models.find((m) => m.id === model);
+    const currentModel = models.find((m) => m.id === mapModelId(model));
     const creditCost = currentModel?.creditCost || 0;
     if (creditCost > 0) {
       // 先刷新余额
@@ -559,7 +559,7 @@ export default function GeneratePageClient({
           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
             <Select value={model} onValueChange={handleModelChange}>
               <SelectTrigger className="h-8 w-auto rounded-full border-brand-light bg-brand-light/50 px-3 text-xs font-medium text-brand-dark hover:bg-brand-light hover:text-brand-dark">
-                <SelectValue>{models.find((m) => m.id === model)?.name || model}</SelectValue>
+                <SelectValue>{models.find((m) => m.id === mapModelId(model))?.name || model}</SelectValue>
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 p-1 [&_[data-slot=select-item]]:pr-1.5 [&_[class*=absolute][class*=right-2]]:hidden">
                 {models.filter((m) => !m.hidden).map((m) => (
