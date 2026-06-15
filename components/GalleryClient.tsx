@@ -65,45 +65,61 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
   const [publishTitle, setPublishTitle] = useState("");
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
 
-  // Poll for new generation while pending on the generate page
+  // Poll task API for new generation while pending on the generate page
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
 
     function checkPending() {
       try {
         const raw = localStorage.getItem("rainbowpix_generate_state");
-        if (!raw) return false;
+        if (!raw) return null;
         const state = JSON.parse(raw);
-        if (!state.pending || state.result) return false;
+        if (!state.pending || state.result) return null;
         return state.pending;
       } catch {
-        return false;
+        return null;
       }
     }
 
     const pending = checkPending();
-    if (!pending) return;
+    if (!pending?.taskId) return;
 
-    const since = new Date(pending.startedAt).toISOString();
     let done = false;
 
     async function poll() {
       if (done) return;
       try {
-        const res = await fetch(
-          `/api/gallery?page=1&prompt=${encodeURIComponent(pending.prompt)}&since=${encodeURIComponent(since)}`
-        );
+        const res = await fetch(`/api/task/${pending.taskId}`);
         if (!res.ok) return;
         const data = await res.json();
-        const match = data.items?.find(
-          (item: { prompt: string; model: string }) =>
-            item.prompt === pending.prompt && item.model === pending.model
-        );
-        if (match && !items.some((i) => i._id === match._id)) {
-          setItems((prev) => [match, ...prev]);
-          setTotal((t) => (t < 0 ? t : t + 1));
+
+        if (data.status === "completed") {
+          // 从 generations 查询完整数据
+          const genRes = await fetch(`/api/gallery?page=1&prompt=${encodeURIComponent(pending.prompt)}`);
+          if (genRes.ok) {
+            const genData = await genRes.json();
+            const match = genData.items?.find(
+              (item: { prompt: string; model: string }) =>
+                item.prompt === pending.prompt && item.model === pending.model
+            );
+            if (match && !items.some((i) => i._id === match._id)) {
+              setItems((prev) => [match, ...prev]);
+              setTotal((t) => (t < 0 ? t : t + 1));
+            }
+          }
           toast.success("新图片已生成");
-          // Clear pending from localStorage
+          try {
+            const raw = localStorage.getItem("rainbowpix_generate_state");
+            if (raw) {
+              const state = JSON.parse(raw);
+              state.pending = null;
+              localStorage.setItem("rainbowpix_generate_state", JSON.stringify(state));
+            }
+          } catch {}
+          done = true;
+          if (timer) clearInterval(timer);
+        } else if (data.status === "failed") {
+          toast.error(data.error || "生成失败");
           try {
             const raw = localStorage.getItem("rainbowpix_generate_state");
             if (raw) {

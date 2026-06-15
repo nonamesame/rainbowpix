@@ -148,8 +148,8 @@ export default function GeneratePageClient({
   // Restore loading state from pending generation
   useEffect(() => {
     if (pending && !result) {
-      // Clear stale pending (older than 2 minutes — generation should be done)
-      if (Date.now() - pending.startedAt > 120_000) {
+      // Clear stale pending (older than 5 minutes — generation should be done)
+      if (Date.now() - pending.startedAt > 300_000) {
         clearPending();
         return;
       }
@@ -157,36 +157,36 @@ export default function GeneratePageClient({
     }
   }, [pending, result]);
 
-  // Poll gallery API for pending generation result
+  // Poll task API for pending generation result
   useEffect(() => {
-    if (!pending || result) return;
+    if (!pending?.taskId || result) return;
 
     const p = pending;
-    const startedAt = new Date(p.startedAt).toISOString();
     let attempts = 0;
     let timer: ReturnType<typeof setInterval>;
 
     async function poll() {
       try {
-        const res = await fetch(
-          `/api/gallery?page=1&prompt=${encodeURIComponent(p.prompt)}&since=${encodeURIComponent(startedAt)}`
-        );
+        const res = await fetch(`/api/task/${p.taskId}`);
         if (!res.ok) return;
         const data = await res.json();
-        const match = data.items?.find(
-          (item: { prompt: string; model: string }) =>
-            item.prompt === p.prompt && item.model === p.model
-        );
-        if (match) {
-          completePending({ image_url: match.image_url, generation_id: match._id });
+
+        if (data.status === "completed") {
+          completePending({ image_url: data.image_url, generation_id: data.generation_id });
           setLoading(false);
           toast.success("生成成功");
           clearInterval(timer);
+        } else if (data.status === "failed") {
+          clearPending();
+          setLoading(false);
+          toast.error(data.error || "生成失败，请稍后重试");
+          clearInterval(timer);
         }
+        // status === "pending" or "running" → 继续轮询
       } catch {}
       attempts++;
-      if (attempts >= 30) {
-        // ~60 seconds
+      if (attempts >= 150) {
+        // ~5 分钟
         clearPending();
         setLoading(false);
         toast.error("生成超时，请在画廊中查看结果");
@@ -198,7 +198,7 @@ export default function GeneratePageClient({
     poll(); // immediate first check
 
     return () => clearInterval(timer);
-  }, [pending, result, completePending, clearPending]);
+  }, [pending?.taskId, result, completePending, clearPending]);
 
   useEffect(() => {
     const cookies = document.cookie.split(";");
@@ -314,7 +314,6 @@ export default function GeneratePageClient({
     const currentModel = models.find((m) => m.id === mapModelId(model));
     const creditCost = currentModel?.creditCost || 0;
     if (creditCost > 0) {
-      // 先刷新余额
       try {
         const res = await fetch("/api/credits/balance");
         if (res.ok) {
@@ -330,11 +329,6 @@ export default function GeneratePageClient({
 
     setPromptError(null);
     setLockedSize(getPixelSize(size, model));
-    startPending({
-      prompt: prompt.trim(),
-      model,
-      size,
-    });
     setLoading(true);
     setResult(null);
     setResultSaved(false);
@@ -349,6 +343,7 @@ export default function GeneratePageClient({
         formData.append("reference_image", file);
       }
 
+      // 提交任务（快速返回 task_id）
       const res = await fetch("/api/generate", {
         method: "POST",
         body: formData,
@@ -357,32 +352,35 @@ export default function GeneratePageClient({
       const data = await res.json();
 
       if (res.status === 401) {
-        clearPending();
+        setLoading(false);
         toast.error("请先登录", { duration: 3000 });
         window.location.href = "/login";
         return;
       }
 
       if (res.status === 402) {
-        clearPending();
+        setLoading(false);
         toast.error(data.error || "额度不足", { duration: 5000 });
         return;
       }
 
       if (!res.ok) {
-        clearPending();
+        setLoading(false);
         setPromptError(data.error || "生成失败");
         toast.error(data.error || "生成失败");
         return;
       }
 
-      completePending({ image_url: data.image_url, generation_id: data.generation_id });
-      toast.success("生成成功");
+      // 拿到 task_id，启动轮询（轮询 useEffect 会自动接管 loading 状态）
+      startPending({
+        taskId: data.task_id,
+        prompt: prompt.trim(),
+        model,
+        size,
+      });
     } catch {
-      clearPending();
-      toast.error("请求失败，请重试");
-    } finally {
       setLoading(false);
+      toast.error("请求失败，请重试");
     }
   }
 

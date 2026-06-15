@@ -13,6 +13,7 @@ interface GenerateResult {
 }
 
 interface PendingGeneration {
+  taskId: string;
   prompt: string;
   model: string;
   size: string;
@@ -117,7 +118,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
   }, [hydrated, model, prompt, size, result, resultSaved, pending]);
 
   // Start pending generation — saves synchronously so navigation can't lose it
-  const startPending = useCallback((opts: { prompt: string; model: string; size: string }) => {
+  const startPending = useCallback((opts: { taskId: string; prompt: string; model: string; size: string }) => {
     const p: PendingGeneration = { ...opts, startedAt: Date.now() };
     setPending(p);
     setResult(null);
