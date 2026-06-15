@@ -371,13 +371,33 @@ export default function GeneratePageClient({
         return;
       }
 
-      // 拿到 task_id，启动轮询（轮询 useEffect 会自动接管 loading 状态）
+      // 拿到 task_id，先启动 pending 状态
+      const taskId = data.task_id;
       startPending({
-        taskId: data.task_id,
+        taskId,
         prompt: prompt.trim(),
         model,
         size,
       });
+
+      // 主动触发任务执行（POST 同步等待结果）
+      try {
+        const runRes = await fetch(`/api/task/${taskId}`, { method: "POST" });
+        const runData = await runRes.json();
+
+        if (runData.status === "completed") {
+          completePending({ image_url: runData.image_url, generation_id: runData.generation_id });
+          toast.success("生成成功");
+          setLoading(false);
+        } else if (runData.status === "failed") {
+          clearPending();
+          setLoading(false);
+          toast.error(runData.error || "生成失败，请稍后重试");
+        }
+        // 如果还是 running/pending（超时了），让轮询 useEffect 接管
+      } catch {
+        // POST 超时或失败，让轮询 useEffect 接管
+      }
     } catch {
       setLoading(false);
       toast.error("请求失败，请重试");

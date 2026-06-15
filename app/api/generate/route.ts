@@ -1,12 +1,10 @@
 import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
-import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import app, { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
 import { getPixelSize, models } from "@/lib/models";
-import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
-import { runTask } from "@/lib/task-runner";
+import { deductCredits, isIdempotentProcessed } from "@/lib/credits";
 import { createHash } from "crypto";
 
 export async function POST(request: NextRequest) {
@@ -138,7 +136,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. 创建 pending task
+    // 6. 创建 pending task（客户端拿到 task_id 后主动触发执行）
     const taskResult = await serverDb.collection("generation_tasks").add({
       user_id: user!.uid,
       prompt,
@@ -155,30 +153,7 @@ export async function POST(request: NextRequest) {
     });
     const taskId = taskResult.id!;
 
-    // 7. 后台执行生成（响应发送后运行，不受 serverless 超时限制）
-    after(async () => {
-      try {
-        await runTask({
-          taskId,
-          userId: user!.uid,
-          prompt,
-          model,
-          width,
-          height,
-          idempotencyKey,
-          creditCost,
-          creditDeducted,
-          referenceImageFileIds: referenceImageFileIds.length > 0 ? referenceImageFileIds : undefined,
-        });
-        // 成功后记录幂等键
-        await recordIdempotentKey(idempotencyKey);
-      } catch (error) {
-        console.error("[generate] after() task failed:", error);
-        Sentry.captureException(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-
-    // 8. 立即返回 task_id
+    // 7. 立即返回 task_id（客户端通过 POST /api/task/{id} 触发执行）
     return Response.json({
       success: true,
       task_id: taskId,
