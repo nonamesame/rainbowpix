@@ -9,8 +9,9 @@ function base64ToBlob(base64: string): Blob {
   return new Blob([new Uint8Array(byteNumbers)], { type: "image/png" });
 }
 
-// 超时配置：本地 60s，线上 90s（给 API 更多时间）
-const REQUEST_TIMEOUT = process.env.VERCEL || process.env.CLOUDFLARE_WORKERS ? 90000 : 60000;
+// 超时配置：GPT Image 2 edits 端点可能需要很长时间，设置 180s
+const IS_SERVERLESS = process.env.VERCEL || process.env.CLOUDFLARE_WORKERS || process.env.TCB || process.env.NODE_ENV === 'production';
+const REQUEST_TIMEOUT = IS_SERVERLESS ? 180000 : 60000;
 
 export async function generateImage(
   prompt: string,
@@ -23,7 +24,7 @@ export async function generateImage(
   const fullUrl = `${process.env.HMVI_BASE_URL}${endpoint}`;
 
   console.log("[HMVI] ========== 开始生成 ==========");
-  console.log("[HMVI] 环境:", process.env.VERCEL ? "Vercel" : process.env.CLOUDFLARE_WORKERS ? "Cloudflare" : process.env.EDGEONE ? "EdgeOne" : "本地");
+  console.log("[HMVI] 环境:", process.env.VERCEL ? "Vercel" : process.env.CLOUDFLARE_WORKERS ? "Cloudflare" : process.env.TCB ? "CloudBase" : process.env.EDGEONE ? "EdgeOne" : "本地");
   console.log("[HMVI] Base URL:", process.env.HMVI_BASE_URL);
   console.log("[HMVI] API Key 存在:", !!process.env.HMVI_API_KEY);
   console.log("[HMVI] 请求端点:", fullUrl);

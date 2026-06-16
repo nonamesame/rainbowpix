@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   console.log("[Generate] ========== 请求开始 ==========");
   console.log("[Generate] 时间:", new Date().toISOString());
-  console.log("[Generate] 环境:", process.env.VERCEL ? "Vercel" : process.env.CLOUDFLARE_WORKERS ? "Cloudflare" : process.env.EDGEONE ? "EdgeOne" : "本地");
+  console.log("[Generate] 环境:", process.env.VERCEL ? "Vercel" : process.env.CLOUDFLARE_WORKERS ? "Cloudflare" : process.env.TCB ? "CloudBase" : process.env.EDGEONE ? "EdgeOne" : "本地");
 
   try {
     // 1. 验证用户身份（通过签名 cookie）
