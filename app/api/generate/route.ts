@@ -219,8 +219,8 @@ export async function POST(request: NextRequest) {
       if (creditCost > 0) {
         serverDb.collection("user_credits")
           .where({ user_id: user!.uid }).limit(1).get()
-          .then(({ data }) => {
-            const doc = data?.[0];
+          .then((res: any) => {
+            const doc = res.data?.[0];
             if (doc) {
               return serverDb.collection("user_credits").doc(doc._id).update({
                 balance: serverDb.command.inc(creditCost),
