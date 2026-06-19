@@ -3,27 +3,21 @@ import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
-import { downloadAndUpload, uploadBase64 } from "@/lib/upload";
-import { generateImage as generateJimeng } from "@/lib/jimeng";
-import { generateImage as generateHMVI } from "@/lib/hmvi-gpt";
-import { generateImage as generateModelScope } from "@/lib/modelscope";
+import { uploadBase64 } from "@/lib/upload";
 import { getPixelSize, models } from "@/lib/models";
-import { deductCredits, refundCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
+import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
 import { createHash } from "crypto";
+import app from "@/lib/cloudbase/server";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
 
-  // 环境变量缺失
   if (raw.includes("缺少环境变量")) return "服务暂时不可用，请稍后再试";
-
-  // 网络 / 超时
   if (raw.includes("timeout") || raw.includes("超时") || raw.includes("ETIMEDOUT"))
     return "生成超时，请稍后重试";
   if (raw.includes("ECONNREFUSED") || raw.includes("ENOTFOUND") || raw.includes("网络"))
     return "网络连接异常，请检查网络后重试";
 
-  // 即梦 API 错误码
   const jimengMatch = raw.match(/即梦 API 错误 \[(\d+)\]/);
   if (jimengMatch) {
     const code = jimengMatch[1];
@@ -33,14 +27,12 @@ function friendlyError(error: unknown): string {
   }
   if (raw.includes("即梦 API 未返回图片数据")) return "即梦生成失败，请更换提示词重试";
 
-  // ModelScope 错误
   if (raw.includes("ModelScope 生成失败")) {
     const detail = raw.replace("ModelScope 生成失败: ", "");
     return `生成失败：${detail}`;
   }
   if (raw.includes("ModelScope")) return "造相模型服务异常，请稍后重试";
 
-  // GPT Image 错误
   if (raw.includes("GPT Image 2 未返回图片数据")) return "GPT Image 2 生成失败，请更换提示词重试";
   if (raw.includes("GPT Image 2 生成失败")) {
     return raw.replace("GPT Image 2 生成失败", "图片生成失败").replace(/^\s*[:：]\s*/, "：");
@@ -48,13 +40,11 @@ function friendlyError(error: unknown): string {
   if (raw.includes("该提示词可能包含违禁词") || raw.includes("违规内容"))
     return "提示词包含违规内容，请修改后重试";
 
-  // HTTP 状态码
   if (raw.includes("429") || raw.includes("rate limit"))
     return "请求过于频繁，请稍后再试";
   if (raw.includes("503") || raw.includes("502"))
     return "服务暂时不可用，请稍后重试";
 
-  // 兜底：不暴露技术细节
   return "生成失败，请稍后重试";
 }
 
@@ -62,35 +52,21 @@ export async function POST(request: NextRequest) {
   let user: { uid: string; email?: string } | undefined;
   let creditDeducted = false;
   let creditCost = 0;
-  const overallStartTime = Date.now();
-
-  console.log("[Generate] ========== 请求开始 ==========");
-  console.log("[Generate] 时间:", new Date().toISOString());
-  console.log("[Generate] 环境:", process.env.VERCEL ? "Vercel" : process.env.CLOUDFLARE_WORKERS ? "Cloudflare" : process.env.TCB ? "CloudBase" : process.env.EDGEONE ? "EdgeOne" : "本地");
 
   try {
-    // 1. 验证用户身份（通过签名 cookie）
-    const authStart = Date.now();
+    // 1. 验证用户身份
     user = getUserFromRequest(request) as { uid: string; email?: string } | undefined;
-    console.log("[Generate] Step 1 - 身份验证:", Date.now() - authStart, "ms");
-
     if (!user) {
-      console.log("[Generate] 身份验证失败: 未登录");
       return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
     }
-    console.log("[Generate] 用户 UID:", user.uid.substring(0, 8) + "...");
 
     // 2. 解析 FormData
-    const parseStart = Date.now();
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
     const model = (formData.get("model") as string) || "z-image-turbo";
     const aspectRatio = (formData.get("aspect_ratio") as string) || "1:1";
     const { w: width, h: height } = getPixelSize(aspectRatio, model);
     const referenceImageFiles = formData.getAll("reference_image") as File[];
-    console.log("[Generate] Step 2 - 解析参数:", Date.now() - parseStart, "ms");
-    console.log("[Generate] 模型:", model, "比例:", aspectRatio, "尺寸:", `${width}x${height}`);
-    console.log("[Generate] 参考图数量:", referenceImageFiles.length);
 
     // 2.1 拒绝已隐藏的模型
     const modelConfig = models.find((m) => m.id === model);
@@ -102,13 +78,12 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "prompt 为必填参数" }, { status: 400 });
     }
 
-    // 2.2 幂等性检查（防止网络重试导致重复扣费）
-    // 用 user + model + prompt + aspectRatio 生成唯一 key，5 分钟内重复请求会直接返回
+    // 2.2 幂等性检查
     const idempotencyPayload = `${user!.uid}:${model}:${prompt}:${aspectRatio}`;
     const idempotencyKey = createHash("sha256").update(idempotencyPayload).digest("hex");
 
+    console.log(`[generate] model=${model} prompt="${prompt.slice(0, 30)}..." size=${width}x${height}`);
     if (await isIdempotentProcessed(idempotencyKey)) {
-      // 已处理过，查询最近一次生成结果返回
       const recentGen = await serverDb
         .collection("generations")
         .where({ user_id: user!.uid, model })
@@ -126,14 +101,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "请勿重复提交相同请求" }, { status: 429 });
     }
 
-    // 2.5 造相每日生成量限制（每用户每天50次）
-    // 采用"先增后验"策略：先原子递增计数器，再检查是否超限，超限则回滚。
-    // 这样即使并发请求同时通过检查，也只会有一个成功，另一个会被回滚拒绝。
+    // 2.5 造相每日生成量限制
     const DAILY_FREE_LIMIT = 50;
-    let dailyUsageId: string | undefined;
     if (model === "z-image-turbo") {
       try {
-        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" }); // YYYY-MM-DD
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
         const usageDoc = await serverDb
           .collection("model_daily_usage")
           .where({ date: today, model: "z-image-turbo", user_id: user!.uid })
@@ -141,15 +113,13 @@ export async function POST(request: NextRequest) {
           .get();
 
         if (usageDoc.data?.[0]) {
-          // 已有记录：先原子 +1，再检查是否超限
-          dailyUsageId = usageDoc.data[0]._id;
-          await serverDb.collection("model_daily_usage").doc(dailyUsageId!).update({
+          const dailyUsageId = usageDoc.data[0]._id;
+          await serverDb.collection("model_daily_usage").doc(dailyUsageId).update({
             count: serverDb.command.inc(1),
           });
-          const { data: afterData } = await serverDb.collection("model_daily_usage").doc(dailyUsageId!).get();
+          const { data: afterData } = await serverDb.collection("model_daily_usage").doc(dailyUsageId).get();
           if ((afterData?.count ?? 0) > DAILY_FREE_LIMIT) {
-            // 超限：回滚本次递增
-            await serverDb.collection("model_daily_usage").doc(dailyUsageId!).update({
+            await serverDb.collection("model_daily_usage").doc(dailyUsageId).update({
               count: serverDb.command.inc(-1),
             });
             return Response.json(
@@ -158,28 +128,21 @@ export async function POST(request: NextRequest) {
             );
           }
         } else {
-          // 首次使用：创建记录，count=1
-          const addResult = await serverDb.collection("model_daily_usage").add({
+          await serverDb.collection("model_daily_usage").add({
             date: today,
             model: "z-image-turbo",
             user_id: user!.uid,
             count: 1,
           });
-          dailyUsageId = addResult.id!;
         }
       } catch (err: any) {
-        // 集合不存在时跳过限额检查
         if (!err?.message?.includes("Db or Table not exist")) throw err;
       }
     }
 
     // 3. 安全审核
-    const auditStart = Date.now();
     const checkResult = await checkPrompt(prompt);
-    console.log("[Generate] Step 3 - 安全审核:", Date.now() - auditStart, "ms");
-
     if (!checkResult.passed) {
-      console.log("[Generate] 安全审核失败:", checkResult.reason);
       await serverDb.collection("audit_logs").add({
         user_id: user!.uid,
         prompt,
@@ -188,136 +151,113 @@ export async function POST(request: NextRequest) {
       });
       return Response.json({ error: checkResult.reason }, { status: 400 });
     }
-    console.log("[Generate] 安全审核通过");
 
-    // 4. 额度检查与扣减（仅 gpt-image-2）— 放在参考图片上传之前，避免余额不足时浪费上传
-    const creditStart = Date.now();
+    // 4. 额度检查与扣减
     const creditModelConfig = models.find((m) => m.id === model);
     creditCost = creditModelConfig?.creditCost || 0;
 
     if (creditCost > 0) {
-      console.log("[Generate] Step 4 - 额度检查与扣减, cost:", creditCost);
-      // 直接调用 deductCredits，内部已有余额检查 + 并发安全重试
       const deductResult = await deductCredits(user!.uid, creditCost);
-      console.log("[Generate] 额度扣减结果:", deductResult.success ? "成功" : "失败", Date.now() - creditStart, "ms");
-
       if (!deductResult.success) {
         return Response.json({ error: deductResult.error }, { status: 402 });
       }
       creditDeducted = true;
-    } else {
-      console.log("[Generate] Step 4 - 无需扣减额度 (model:", model, ")");
     }
 
-    // 5. 处理参考图片（额度扣减之后，避免余额不足时浪费上传）
-    const refStart = Date.now();
-    const referenceImagesBase64: string[] = [];
+    // 5. 处理参考图片 — 上传到 CloudBase 存储，拿到 URL 传给云函数
     const referenceImageUrls: string[] = [];
     for (const file of referenceImageFiles) {
       if (file && file.size > 0) {
         const buffer = Buffer.from(await file.arrayBuffer());
         const base64 = buffer.toString("base64");
-        referenceImagesBase64.push(base64);
         const url = await uploadBase64(base64, `ref-${Date.now()}-${referenceImageUrls.length}.png`);
         referenceImageUrls.push(url);
       }
     }
-    console.log("[Generate] Step 5 - 参考图处理:", Date.now() - refStart, "ms, 数量:", referenceImagesBase64.length);
 
-    // 6. 根据模型路由调用生成函数
-    const genStart = Date.now();
-    let imageUrl: string;
+    // ============================================================
+    // 6. 创建异步任务 + 触发云函数（代替同步生图）
+    // ============================================================
 
-    console.log("[Generate] Step 6 - 开始调用 AI 生成, 模型:", model);
-
-    switch (model) {
-      case "jimeng-3.0": {
-        imageUrl = await generateJimeng(prompt, "", width, height, undefined, "jimeng_t2i_v30");
-        break;
-      }
-      case "jimeng-4.0": {
-        imageUrl = await generateJimeng(prompt, "", width, height, referenceImagesBase64[0], undefined, "v4");
-        break;
-      }
-      case "gpt-image-2-1k": {
-        imageUrl = await generateHMVI(prompt, `${width}x${height}`, referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined);
-        break;
-      }
-      case "z-image-turbo": {
-        imageUrl = await generateModelScope(prompt, width, height);
-        break;
-      }
-      default:
-        return Response.json({ error: `不支持的模型: ${model}` }, { status: 400 });
-    }
-    console.log("[Generate] Step 6 - AI 生成完成:", Date.now() - genStart, "ms");
-
-    // 7. 上传到 CloudBase 存储，拿到永久 URL
-    const uploadStart = Date.now();
-    let permanentUrl: string;
-    if (imageUrl.startsWith("data:")) {
-      const base64 = imageUrl.split(",")[1];
-      permanentUrl = await uploadBase64(base64, `${model}-${Date.now()}.png`);
-    } else {
-      permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`);
-    }
-    console.log("[Generate] Step 7 - 上传存储:", Date.now() - uploadStart, "ms");
-
-    // 8. 写入 generations 集合
-    const dbStart = Date.now();
-    const addResult = await serverDb.collection("generations").add({
+    // 6.1 写入 pending 任务记录
+    const taskDoc = await serverDb.collection("generation_tasks").add({
       user_id: user!.uid,
       prompt,
       model,
-      image_url: permanentUrl,
-      reference_image_url: referenceImageUrls.length > 0 ? JSON.stringify(referenceImageUrls) : null,
+      aspect_ratio: aspectRatio,
+      status: "pending",
       created_at: new Date().toISOString(),
-      published: false,
-      watermark_enabled: false,
-      likes_count: 0,
-      source: "ai",
-      width,
-      height,
     });
-    const id = addResult.id!;
-    console.log("[Generate] Step 8 - 写入数据库:", Date.now() - dbStart, "ms");
+    const taskId = taskDoc._id!;
 
-    // 9. 记录幂等键（标记此请求已处理完成）
+    // 6.2 记录幂等键（在触发云函数之前，防止重复触发）
     await recordIdempotentKey(idempotencyKey);
 
-    // 10. 返回永久 URL
-    const totalTime = Date.now() - overallStartTime;
-    console.log("[Generate] ========== 请求完成 ==========");
-    console.log("[Generate] 总耗时:", totalTime, "ms");
-    console.log("[Generate] 图片 URL:", permanentUrl.substring(0, 80) + "...");
+    // 6.3 触发 CloudBase 云函数 — fire-and-forget（不等结果，立刻返回）
+    //     callFunction 内部是 HTTP 请求，await 会等云函数跑完（可能 3+ 分钟）
+    //     不 await = 云函数在后台跑，路由立刻返回 task_id
+    const cloudFunctionPayload = {
+      task_id: taskId,
+      user_id: user!.uid,
+      prompt,
+      model,
+      aspect_ratio: aspectRatio,
+      reference_image_urls: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
+    };
 
+    // fire-and-forget: 不 await，让云函数在后台执行
+    app.callFunction({
+      name: "generateImage",
+      data: cloudFunctionPayload,
+    }).catch((err: any) => {
+      console.error("[generate] callFunction fire-and-forget error:", err?.message);
+      serverDb.collection("generation_tasks").doc(taskId).update({
+        status: "failed",
+        error: "任务触发失败，请稍后重试",
+        completed_at: new Date().toISOString(),
+      }).catch(() => {});
+      if (creditCost > 0) {
+        serverDb.collection("user_credits")
+          .where({ user_id: user!.uid }).limit(1).get()
+          .then(({ data }) => {
+            const doc = data?.[0];
+            if (doc) {
+              return serverDb.collection("user_credits").doc(doc._id).update({
+                balance: serverDb.command.inc(creditCost),
+                total_used: serverDb.command.inc(-creditCost),
+                updated_at: new Date().toISOString(),
+              });
+            }
+          }).catch(() => {});
+      }
+    });
+
+    // 7. 立刻返回 task_id，客户端轮询获取结果
+    console.log(`[generate] task created — id=${taskId} model=${model}`);
     return Response.json({
       success: true,
-      image_url: permanentUrl,
-      generation_id: id,
+      task_id: taskId,
+      status: "pending",
     });
+
   } catch (error: any) {
-    const totalTime = Date.now() - overallStartTime;
-    console.error("[Generate] ========== 请求失败 ==========");
-    console.error("[Generate] 总耗时:", totalTime, "ms");
-    console.error("[Generate] 错误类型:", error.constructor?.name);
-    console.error("[Generate] 错误消息:", error.message);
-
-    if (error.code) {
-      console.error("[Generate] 错误代码:", error.code);
-    }
-    if (error.response?.data) {
-      console.error("[Generate] API 响应:", JSON.stringify(error.response.data).substring(0, 500));
-    }
-    if (error.request) {
-      console.error("[Generate] 请求已发送但无响应");
-      console.error("[Generate] 请求超时:", error.message?.includes("timeout"));
-    }
-
     // 生成失败时回滚已扣减的额度
     if (creditDeducted && creditCost > 0 && user) {
-      console.log("[Generate] 回滚额度:", creditCost);
-      await refundCredits(user.uid, creditCost);
+      const { data } = await serverDb.collection("user_credits")
+        .where({ user_id: user!.uid }).limit(1).get();
+      const doc = data?.[0];
+      if (doc) {
+        await serverDb.collection("user_credits").doc(doc._id).update({
+          balance: serverDb.command.inc(creditCost),
+          total_used: serverDb.command.inc(-creditCost),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    console.error("Generate API error:", error?.message);
+    if (error.response?.data) {
+      console.error("API response:", error.response.data);
     }
 
     Sentry.captureException(error instanceof Error ? error : new Error(String(error)));

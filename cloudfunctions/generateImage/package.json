@@ -1,0 +1,12 @@
+{
+  "name": "generateImage",
+  "version": "1.0.0",
+  "description": "CloudBase cloud function for async image generation",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.0.0",
+    "axios": "^1.6.0",
+    "crypto-js": "^4.2.0",
+    "form-data": "^4.0.0"
+  }
+}
