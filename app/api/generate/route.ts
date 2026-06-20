@@ -6,7 +6,7 @@ import { checkPrompt } from "@/lib/security";
 import { uploadBase64 } from "@/lib/upload";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import app from "@/lib/cloudbase/server";
 
 function friendlyError(error: unknown): string {
@@ -179,8 +179,9 @@ export async function POST(request: NextRequest) {
     // 6. 创建异步任务 + 触发云函数（代替同步生图）
     // ============================================================
 
-    // 6.1 写入 pending 任务记录
-    const taskDoc = await serverDb.collection("generation_tasks").add({
+    // 6.1 写入 pending 任务记录（先生成 ID，确保云函数能收到）
+    const taskId = randomBytes(12).toString("hex");
+    await serverDb.collection("generation_tasks").doc(taskId).set({
       user_id: user!.uid,
       prompt,
       model,
@@ -188,7 +189,6 @@ export async function POST(request: NextRequest) {
       status: "pending",
       created_at: new Date().toISOString(),
     });
-    const taskId = String(taskDoc._id!);
 
     // 6.2 记录幂等键（在触发云函数之前，防止重复触发）
     await recordIdempotentKey(idempotencyKey);
