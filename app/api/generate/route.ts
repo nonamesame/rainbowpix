@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
       status: "pending",
       created_at: new Date().toISOString(),
     });
-    const taskId = taskDoc._id!;
+    const taskId = String(taskDoc._id!);
 
     // 6.2 记录幂等键（在触发云函数之前，防止重复触发）
     await recordIdempotentKey(idempotencyKey);

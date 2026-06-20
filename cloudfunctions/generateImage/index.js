@@ -292,6 +292,10 @@ exports.main = async (event) => {
   if (event.httpMethod && typeof event.body === 'string') {
     try { data = JSON.parse(event.body) } catch { data = event }
   }
+
+  console.log('[generateImage] event keys:', Object.keys(event))
+  console.log('[generateImage] data:', JSON.stringify(data).slice(0, 500))
+
   const { task_id, user_id, prompt, model, aspect_ratio, reference_image_urls } = data
 
   console.log(`[generateImage] start — task=${task_id} model=${model} user=${user_id}`)
