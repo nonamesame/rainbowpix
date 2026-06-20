@@ -287,19 +287,13 @@ function checkPrompt(prompt) {
 // 主函数入口
 // ============================================================
 exports.main = async (event) => {
-  console.log('[generateImage] event keys:', Object.keys(event))
-
   // 兼容 callFunction / HTTP trigger / event.data 包裹三种情况
   let data = event
   if (event.httpMethod && typeof event.body === 'string') {
     try { data = JSON.parse(event.body) } catch { data = event }
   } else if (event.data && typeof event.data === 'object') {
-    // CloudBase callFunction 可能把 payload 包在 event.data 里
     data = { ...event.data }
   }
-
-  console.log('[generateImage] data keys:', Object.keys(data))
-  console.log('[generateImage] data:', JSON.stringify(data).slice(0, 500))
 
   const { task_id, user_id, prompt, model, aspect_ratio, reference_image_urls } = data
 
@@ -307,9 +301,7 @@ exports.main = async (event) => {
 
   try {
     // 1. 安全审核
-    console.log('[generateImage] step1: checkPrompt...')
     const checkResult = checkPrompt(prompt)
-    console.log('[generateImage] step1: checkResult =', JSON.stringify(checkResult))
     if (!checkResult.passed) {
       await db.collection('generation_tasks').doc(task_id).update({
         status: 'failed', error: checkResult.reason,
@@ -319,12 +311,9 @@ exports.main = async (event) => {
     }
 
     // 2. 获取尺寸
-    console.log('[generateImage] step2: getPixelSize...')
     const { w: width, h: height } = getPixelSize(aspect_ratio, model)
-    console.log('[generateImage] step2: size =', width, 'x', height)
 
     // 3. 根据模型调用 API
-    console.log('[generateImage] step3: model =', model)
     let imageUrl
     switch (model) {
       case 'jimeng-3.0':
@@ -334,7 +323,6 @@ exports.main = async (event) => {
         imageUrl = await generateJimeng(prompt, '', width, height, undefined, undefined, 'v4')
         break
       case 'gpt-image-2-1k':
-        console.log('[generateImage] step3: calling generateHMVI, ref images:', reference_image_urls?.length || 0)
         imageUrl = await generateHMVI(prompt, `${width}x${height}`, reference_image_urls)
         break
       case 'z-image-turbo':

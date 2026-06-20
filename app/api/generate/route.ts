@@ -206,30 +206,14 @@ export async function POST(request: NextRequest) {
     };
 
     // fire-and-forget: 不 await，让云函数在后台执行
+    // timeout 设 180 秒，避免 SDK 内部超时误报失败（云函数自己会更新任务状态）
     app.callFunction({
       name: "generateImage",
       data: cloudFunctionPayload,
+      timeout: 180000,
     }).catch((err: any) => {
+      // 只记日志，不改任务状态 — 云函数可能仍在运行并自行更新状态
       console.error("[generate] callFunction fire-and-forget error:", err?.message);
-      serverDb.collection("generation_tasks").doc(taskId).update({
-        status: "failed",
-        error: "任务触发失败，请稍后重试",
-        completed_at: new Date().toISOString(),
-      }).catch(() => {});
-      if (creditCost > 0) {
-        serverDb.collection("user_credits")
-          .where({ user_id: user!.uid }).limit(1).get()
-          .then((res: any) => {
-            const doc = res.data?.[0];
-            if (doc) {
-              return serverDb.collection("user_credits").doc(doc._id).update({
-                balance: serverDb.command.inc(creditCost),
-                total_used: serverDb.command.inc(-creditCost),
-                updated_at: new Date().toISOString(),
-              });
-            }
-          }).catch(() => {});
-      }
     });
 
     // 7. 立刻返回 task_id，客户端轮询获取结果
