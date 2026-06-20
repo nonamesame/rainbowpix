@@ -287,13 +287,18 @@ function checkPrompt(prompt) {
 // 主函数入口
 // ============================================================
 exports.main = async (event) => {
-  // 兼容 callFunction 和 HTTP trigger 两种调用方式
+  console.log('[generateImage] event keys:', Object.keys(event))
+
+  // 兼容 callFunction / HTTP trigger / event.data 包裹三种情况
   let data = event
   if (event.httpMethod && typeof event.body === 'string') {
     try { data = JSON.parse(event.body) } catch { data = event }
+  } else if (event.data && typeof event.data === 'object') {
+    // CloudBase callFunction 可能把 payload 包在 event.data 里
+    data = { ...event.data }
   }
 
-  console.log('[generateImage] event keys:', Object.keys(event))
+  console.log('[generateImage] data keys:', Object.keys(data))
   console.log('[generateImage] data:', JSON.stringify(data).slice(0, 500))
 
   const { task_id, user_id, prompt, model, aspect_ratio, reference_image_urls } = data
