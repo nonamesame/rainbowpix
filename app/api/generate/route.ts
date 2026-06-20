@@ -164,14 +164,12 @@ export async function POST(request: NextRequest) {
       creditDeducted = true;
     }
 
-    // 5. 处理参考图片 — 上传到 CloudBase 存储，拿到 URL 传给云函数
-    const referenceImageUrls: string[] = [];
+    // 5. 处理参考图片 — 转 base64 传给云函数（云函数需要 base64，不是 URL）
+    const referenceImagesBase64: string[] = [];
     for (const file of referenceImageFiles) {
       if (file && file.size > 0) {
         const buffer = Buffer.from(await file.arrayBuffer());
-        const base64 = buffer.toString("base64");
-        const url = await uploadBase64(base64, `ref-${Date.now()}-${referenceImageUrls.length}.png`);
-        referenceImageUrls.push(url);
+        referenceImagesBase64.push(buffer.toString("base64"));
       }
     }
 
@@ -202,7 +200,7 @@ export async function POST(request: NextRequest) {
       prompt,
       model,
       aspect_ratio: aspectRatio,
-      reference_image_urls: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
+      reference_image_urls: referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined,
     };
 
     // fire-and-forget: 不 await，让云函数在后台执行
