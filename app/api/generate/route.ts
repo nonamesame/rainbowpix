@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
 
     // 6.2 调用云函数 — 同步等待结果
     const cloudFunctionPayload = {
+      task_id: "sync-" + Date.now().toString(36),
       user_id: user!.uid,
       prompt,
       model,
