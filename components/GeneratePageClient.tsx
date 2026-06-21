@@ -277,12 +277,15 @@ export default function GeneratePageClient({
       }
 
       // 同步调用，等待云函数生成完毕直接返回结果
+      console.log(`[gen] sending request — t=${Date.now()}`);
       const res = await fetch("/api/generate", {
         method: "POST",
         body: formData,
       });
+      console.log(`[gen] response received — status=${res.status} t=${Date.now()}`);
 
       const data = await res.json();
+      console.log(`[gen] data:`, JSON.stringify(data).slice(0, 200));
 
       if (res.status === 401) {
         setLoading(false);

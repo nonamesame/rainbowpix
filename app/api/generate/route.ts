@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       reference_image_urls: referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined,
     };
 
-    console.log(`[generate] calling cloud function — model=${model}`);
+    console.log(`[generate] calling cloud function — model=${model} t=${Date.now()}`);
 
     let cfResult: any;
     let timedOut = false;
@@ -200,10 +200,12 @@ export async function POST(request: NextRequest) {
         data: cloudFunctionPayload,
         timeout: 300000,
       });
+      console.log(`[generate] callFunction returned — t=${Date.now()}`);
     } catch (cfErr: any) {
+      console.log(`[generate] callFunction error — ${cfErr?.message} t=${Date.now()}`);
       const isTimeout = /timeout|ETIMEDOUT/i.test(cfErr?.message);
       if (isTimeout) {
-        console.log(`[generate] callFunction timeout — cloud function may still be running`);
+        console.log(`[generate] callFunction timeout — will retry from DB`);
         timedOut = true;
       } else {
         throw cfErr;
@@ -240,9 +242,10 @@ export async function POST(request: NextRequest) {
     }
 
     // SDK 超时 — 等几秒后查数据库拿结果（云函数可能已经写入了）
-    console.log(`[generate] waiting for cloud function to finish...`);
+    console.log(`[generate] waiting for cloud function to finish... t=${Date.now()}`);
     for (let i = 0; i < 6; i++) {
       await new Promise((r) => setTimeout(r, 10000)); // 每 10 秒查一次，最多 60 秒
+      console.log(`[generate] retry ${i + 1}/6 — checking DB t=${Date.now()}`);
       try {
         const { data: gens } = await serverDb
           .collection("generations")
@@ -254,6 +257,7 @@ export async function POST(request: NextRequest) {
         if (latest) {
           const genTime = new Date(latest.created_at).getTime();
           const createTime = Date.now() - 120_000; // 2 分钟内创建的
+          console.log(`[generate] latest gen time=${new Date(genTime).toISOString()} cutoff=${new Date(createTime).toISOString()}`);
           if (genTime >= createTime) {
             console.log(`[generate] found result after timeout — ${latest.image_url}`);
             return Response.json({
@@ -262,8 +266,12 @@ export async function POST(request: NextRequest) {
               generation_id: latest._id,
             });
           }
+        } else {
+          console.log(`[generate] no generations found for user`);
         }
-      } catch {}
+      } catch (e: any) {
+        console.log(`[generate] DB query error: ${e?.message}`);
+      }
     }
 
     // 60 秒后还没查到，返回 generating 状态让前端提示用户
