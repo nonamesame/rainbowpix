@@ -304,6 +304,13 @@ export default function GeneratePageClient({
         return;
       }
 
+      // 云函数超时但仍在运行，提示用户到画廊查看
+      if (data.status === "generating") {
+        setLoading(false);
+        toast.success("图片正在生成中，请稍后到画廊查看", { duration: 5000 });
+        return;
+      }
+
       // 直接拿到结果，显示图片
       setResult({ image_url: data.image_url, generation_id: data.generation_id });
       setLoading(false);

@@ -191,11 +191,27 @@ export async function POST(request: NextRequest) {
     };
 
     console.log(`[generate] calling cloud function — model=${model}`);
-    const cfResult: any = await app.callFunction({
-      name: "generateImage",
-      data: cloudFunctionPayload,
-      timeout: 180000,
-    });
+
+    let cfResult: any;
+    try {
+      cfResult = await app.callFunction({
+        name: "generateImage",
+        data: cloudFunctionPayload,
+        timeout: 300000,
+      });
+    } catch (cfErr: any) {
+      // SDK 超时 ≠ 云函数失败（云函数可能仍在运行并成功写入 generations）
+      const isTimeout = /timeout|ETIMEDOUT/i.test(cfErr?.message);
+      if (isTimeout) {
+        console.log(`[generate] callFunction timeout — cloud function may still be running`);
+        return Response.json({
+          success: true,
+          status: "generating",
+          message: "图片正在生成中，请稍后到画廊查看结果",
+        });
+      }
+      throw cfErr;
+    }
 
     // 6.3 处理云函数结果（CloudBase SDK 返回 { result: ... }）
     const cfData = cfResult?.result;
