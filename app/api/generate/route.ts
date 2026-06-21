@@ -6,7 +6,7 @@ import { checkPrompt } from "@/lib/security";
 import { uploadBase64 } from "@/lib/upload";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
-import { createHash, randomBytes } from "crypto";
+import { createHash } from "crypto";
 import app from "@/lib/cloudbase/server";
 
 function friendlyError(error: unknown): string {
@@ -174,28 +174,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // 6. 创建异步任务 + 触发云函数（代替同步生图）
+    // 6. 调用云函数同步生图（等待结果直接返回）
     // ============================================================
 
-    // 6.1 写入 pending 任务记录（先生成 ID，确保云函数能收到）
-    const taskId = randomBytes(12).toString("hex");
-    await serverDb.collection("generation_tasks").doc(taskId).set({
-      user_id: user!.uid,
-      prompt,
-      model,
-      aspect_ratio: aspectRatio,
-      status: "pending",
-      created_at: new Date().toISOString(),
-    });
-
-    // 6.2 记录幂等键（在触发云函数之前，防止重复触发）
+    // 6.1 记录幂等键
     await recordIdempotentKey(idempotencyKey);
 
-    // 6.3 触发 CloudBase 云函数 — fire-and-forget（不等结果，立刻返回）
-    //     callFunction 内部是 HTTP 请求，await 会等云函数跑完（可能 3+ 分钟）
-    //     不 await = 云函数在后台跑，路由立刻返回 task_id
+    // 6.2 调用云函数 — 同步等待结果
     const cloudFunctionPayload = {
-      task_id: taskId,
       user_id: user!.uid,
       prompt,
       model,
@@ -203,23 +189,38 @@ export async function POST(request: NextRequest) {
       reference_image_urls: referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined,
     };
 
-    // fire-and-forget: 不 await，让云函数在后台执行
-    // timeout 设 180 秒，避免 SDK 内部超时误报失败（云函数自己会更新任务状态）
-    app.callFunction({
+    console.log(`[generate] calling cloud function — model=${model}`);
+    const cfResult: any = await app.callFunction({
       name: "generateImage",
       data: cloudFunctionPayload,
       timeout: 180000,
-    }).catch((err: any) => {
-      // 只记日志，不改任务状态 — 云函数可能仍在运行并自行更新状态
-      console.error("[generate] callFunction fire-and-forget error:", err?.message);
     });
 
-    // 7. 立刻返回 task_id，客户端轮询获取结果
-    console.log(`[generate] task created — id=${taskId} model=${model}`);
+    // 6.3 处理云函数结果
+    const cfData = cfResult?.data;
+    if (!cfData?.success) {
+      // 云函数内部失败（敏感词/生成失败等），退还额度
+      if (creditDeducted && creditCost > 0 && user) {
+        const { data } = await serverDb.collection("user_credits")
+          .where({ user_id: user!.uid }).limit(1).get();
+        const doc = data?.[0];
+        if (doc) {
+          await serverDb.collection("user_credits").doc(doc._id).update({
+            balance: serverDb.command.inc(creditCost),
+            total_used: serverDb.command.inc(-creditCost),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+      const msg = cfData?.error || "生成失败，请稍后重试";
+      return Response.json({ error: msg }, { status: 500 });
+    }
+
+    console.log(`[generate] done — image=${cfData.image_url}`);
     return Response.json({
       success: true,
-      task_id: taskId,
-      status: "pending",
+      image_url: cfData.image_url,
+      generation_id: cfData.generation_id,
     });
 
   } catch (error: any) {

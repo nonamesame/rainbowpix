@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Loader2, Download, Save, ImagePlus, X, Share2, Coins } from "lucide-react";
 import ImageViewer from "@/components/ImageViewer";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -65,7 +63,6 @@ export default function GeneratePageClient({
     size, setSize,
     result, setResult,
     resultSaved, setResultSaved,
-    pending, startPending, completePending, clearPending,
   } = useGenerateState(hasUrlParams, {
     prompt: initialPrompt,
     model: initialModel,
@@ -144,102 +141,6 @@ export default function GeneratePageClient({
       } catch {}
     }
   }, [initialRef]);
-
-  // Restore loading state from pending generation + 立即检查一次状态
-  useEffect(() => {
-    if (pending && !result) {
-      // Clear stale pending (older than 5 minutes — generation should be done)
-      if (Date.now() - pending.startedAt > 300_000) {
-        clearPending();
-        return;
-      }
-      setLoading(true);
-
-      // 立即检查一次任务状态（避免等 2 秒轮询间隔）
-      fetch(`/api/task/${pending.taskId}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
-          if (data?.status === "completed") {
-            completePending({ image_url: data.image_url, generation_id: data.generation_id });
-            setLoading(false);
-            toast.success("生成成功");
-          } else if (data?.status === "failed") {
-            clearPending();
-            setLoading(false);
-            toast.error(data.error || "生成失败，请稍后重试");
-          }
-        })
-        .catch(() => {});
-    }
-  }, [pending, result]);
-
-  // Poll task API for pending generation result
-  useEffect(() => {
-    if (!pending?.taskId || result) return;
-
-    const p = pending;
-    let attempts = 0;
-    let timer: ReturnType<typeof setInterval>;
-
-    async function poll() {
-      try {
-        const res = await fetch(`/api/task/${p.taskId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-
-        if (data.status === "completed") {
-          completePending({ image_url: data.image_url, generation_id: data.generation_id });
-          setLoading(false);
-          toast.success("生成成功");
-          clearInterval(timer);
-        } else if (data.status === "failed") {
-          clearPending();
-          setLoading(false);
-          toast.error(data.error || "生成失败，请稍后重试");
-          clearInterval(timer);
-        } else if (attempts >= 30 && (data.status === "pending" || !data.status)) {
-          // 任务卡在 pending 超过 60 秒，可能是云函数更新状态失败
-          // 兜底：查 generations 集合看有没有最新图片
-          try {
-            const genRes = await fetch(`/api/task/${p.taskId}?check_generation=1`);
-            if (genRes.ok) {
-              const genData = await genRes.json();
-              if (genData.image_url) {
-                completePending({ image_url: genData.image_url, generation_id: genData.generation_id });
-                setLoading(false);
-                toast.success("生成成功");
-                clearInterval(timer);
-                return;
-              }
-            }
-          } catch {}
-        }
-        // status === "pending" or "running" → 继续轮询
-      } catch {}
-      attempts++;
-      if (attempts >= 150) {
-        // ~5 分钟
-        clearPending();
-        setLoading(false);
-        toast.error("生成超时，请在画廊中查看结果");
-        clearInterval(timer);
-      }
-    }
-
-    timer = setInterval(poll, 2000);
-    poll(); // immediate first check
-
-    return () => clearInterval(timer);
-  }, [pending?.taskId, result, completePending, clearPending]);
-
-  useEffect(() => {
-    const cookies = document.cookie.split(";");
-    const hasUser = cookies.some((c) => c.trim().startsWith("tcb_user="));
-    if (!hasUser) {
-      toast.error("请先登录", { duration: 3000 });
-      window.location.href = "/login";
-    }
-  }, []);
 
   const currentModel = models.find((m) => m.id === mapModelId(model));
   const supportedRatios = currentModel?.supportedAspectRatios || ["1:1"];
@@ -375,7 +276,7 @@ export default function GeneratePageClient({
         formData.append("reference_image", file);
       }
 
-      // 提交任务（快速返回 task_id）
+      // 同步调用，等待云函数生成完毕直接返回结果
       const res = await fetch("/api/generate", {
         method: "POST",
         body: formData,
@@ -403,14 +304,10 @@ export default function GeneratePageClient({
         return;
       }
 
-      // 拿到 task_id，启动 pending 状态，轮询 useEffect 会自动开始轮询
-      const taskId = data.task_id;
-      startPending({
-        taskId,
-        prompt: prompt.trim(),
-        model,
-        size,
-      });
+      // 直接拿到结果，显示图片
+      setResult({ image_url: data.image_url, generation_id: data.generation_id });
+      setLoading(false);
+      toast.success("生成成功");
     } catch {
       setLoading(false);
       toast.error("请求失败，请重试");
