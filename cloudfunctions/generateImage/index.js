@@ -359,15 +359,20 @@ exports.main = async (event) => {
       height,
     })
 
-    // 6. 更新任务状态为完成
-    await db.collection('generation_tasks').doc(task_id).update({
-      status: 'completed',
-      image_url: permanentUrl,
-      generation_id: addResult._id,
-      width,
-      height,
-      completed_at: new Date().toISOString(),
-    })
+    // 6. 更新任务状态为完成（独立 try-catch，避免写入失败导致整体报错）
+    try {
+      await db.collection('generation_tasks').doc(task_id).update({
+        status: 'completed',
+        image_url: permanentUrl,
+        generation_id: addResult._id,
+        width,
+        height,
+        completed_at: new Date().toISOString(),
+      })
+    } catch (updateErr) {
+      console.error(`[generateImage] task status update failed — task=${task_id}:`, updateErr.message)
+      // 图片已生成并写入 generations，前端兜底查询可以补偿
+    }
 
     console.log(`[generateImage] done — task=${task_id}`)
     return { success: true, image_url: permanentUrl, generation_id: addResult._id }

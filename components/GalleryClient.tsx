@@ -476,13 +476,26 @@ export default function GalleryClient({ initialItems, total: initialTotal }: Pro
             <DialogTitle>参考图</DialogTitle>
           </DialogHeader>
           {selected?.reference_image_url && (
-            <div className="overflow-hidden rounded-xl bg-gray-100">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={toProxyUrl(selected.reference_image_url)}
-                alt="参考图"
-                className="w-full object-contain"
-              />
+            <div className="space-y-3">
+              {(() => {
+                let urls: string[] = [];
+                try {
+                  const parsed = JSON.parse(selected.reference_image_url);
+                  if (Array.isArray(parsed)) urls = parsed;
+                } catch {
+                  urls = [selected.reference_image_url];
+                }
+                return urls.map((url, i) => (
+                  <div key={i} className="overflow-hidden rounded-xl bg-gray-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={toProxyUrl(url)}
+                      alt={`参考图 ${i + 1}`}
+                      className="w-full object-contain"
+                    />
+                  </div>
+                ));
+              })()}
             </div>
           )}
         </DialogContent>

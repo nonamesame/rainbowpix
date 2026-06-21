@@ -16,6 +16,8 @@ export async function GET(
   }
 
   const { taskId } = await params;
+  const { searchParams } = new URL(request.url);
+  const checkGeneration = searchParams.get("check_generation") === "1";
 
   try {
     const { data } = await serverDb
@@ -29,6 +31,40 @@ export async function GET(
 
     if (data.user_id !== user.uid) {
       return Response.json({ error: "无权访问" }, { status: 403 });
+    }
+
+    // 兜底：如果任务卡在 pending，查 generations 集合看有没有最新图片
+    if (checkGeneration && (data.status === "pending" || !data.status)) {
+      const { data: gens } = await serverDb
+        .collection("generations")
+        .where({ user_id: user.uid })
+        .order("created_at", "desc")
+        .limit(1)
+        .get();
+      const latest = gens?.[0];
+      if (latest && latest.created_at) {
+        const genTime = new Date(latest.created_at).getTime();
+        const taskTime = new Date(data.created_at).getTime();
+        // 最新 generation 在任务创建之后，说明图片已生成但任务状态未更新
+        if (genTime >= taskTime) {
+          // 补偿：更新任务状态
+          await serverDb.collection("generation_tasks").doc(taskId).update({
+            status: "completed",
+            image_url: latest.image_url,
+            generation_id: latest._id,
+            width: latest.width,
+            height: latest.height,
+            completed_at: new Date().toISOString(),
+          });
+          return Response.json({
+            status: "completed",
+            image_url: latest.image_url,
+            generation_id: latest._id,
+            width: latest.width,
+            height: latest.height,
+          });
+        }
+      }
     }
 
     return Response.json({

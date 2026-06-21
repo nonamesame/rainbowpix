@@ -181,6 +181,22 @@ export default function GeneratePageClient({
           setLoading(false);
           toast.error(data.error || "生成失败，请稍后重试");
           clearInterval(timer);
+        } else if (attempts >= 30 && (data.status === "pending" || !data.status)) {
+          // 任务卡在 pending 超过 60 秒，可能是云函数更新状态失败
+          // 兜底：查 generations 集合看有没有最新图片
+          try {
+            const genRes = await fetch(`/api/task/${p.taskId}?check_generation=1`);
+            if (genRes.ok) {
+              const genData = await genRes.json();
+              if (genData.image_url) {
+                completePending({ image_url: genData.image_url, generation_id: genData.generation_id });
+                setLoading(false);
+                toast.success("生成成功");
+                clearInterval(timer);
+                return;
+              }
+            }
+          } catch {}
         }
         // status === "pending" or "running" → 继续轮询
       } catch {}
@@ -371,7 +387,7 @@ export default function GeneratePageClient({
         return;
       }
 
-      // 拿到 task_id，先启动 pending 状态
+      // 拿到 task_id，启动 pending 状态，轮询 useEffect 会自动开始轮询
       const taskId = data.task_id;
       startPending({
         taskId,
@@ -379,25 +395,6 @@ export default function GeneratePageClient({
         model,
         size,
       });
-
-      // 主动触发任务执行（POST 同步等待结果）
-      try {
-        const runRes = await fetch(`/api/task/${taskId}`, { method: "POST" });
-        const runData = await runRes.json();
-
-        if (runData.status === "completed") {
-          completePending({ image_url: runData.image_url, generation_id: runData.generation_id });
-          toast.success("生成成功");
-          setLoading(false);
-        } else if (runData.status === "failed") {
-          clearPending();
-          setLoading(false);
-          toast.error(runData.error || "生成失败，请稍后重试");
-        }
-        // 如果还是 running/pending（超时了），让轮询 useEffect 接管
-      } catch {
-        // POST 超时或失败，让轮询 useEffect 接管
-      }
     } catch {
       setLoading(false);
       toast.error("请求失败，请重试");
