@@ -287,12 +287,24 @@ function checkPrompt(prompt) {
 // 主函数入口
 // ============================================================
 exports.main = async (event) => {
+  // 检测是否为 HTTP 触发器调用
+  const isHttp = !!(event.httpMethod && typeof event.body === 'string')
+
   // 兼容 callFunction / HTTP trigger / event.data 包裹三种情况
   let data = event
-  if (event.httpMethod && typeof event.body === 'string') {
+  if (isHttp) {
     try { data = JSON.parse(event.body) } catch { data = event }
   } else if (event.data && typeof event.data === 'object') {
     data = { ...event.data }
+  }
+
+  // HTTP 触发器响应包装
+  function httpResponse(statusCode, body) {
+    return {
+      statusCode,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
   }
 
   const { task_id, user_id, prompt, model, aspect_ratio, reference_image_urls } = data
@@ -307,7 +319,8 @@ exports.main = async (event) => {
         status: 'failed', error: checkResult.reason,
         completed_at: new Date().toISOString(),
       })
-      return { success: false, error: checkResult.reason }
+      const errResult = { success: false, error: checkResult.reason }
+      return isHttp ? httpResponse(200, errResult) : errResult
     }
 
     // 2. 获取尺寸
@@ -375,7 +388,8 @@ exports.main = async (event) => {
     }
 
     console.log(`[generateImage] done — task=${task_id}`)
-    return { success: true, image_url: permanentUrl, generation_id: addResult._id }
+    const okResult = { success: true, image_url: permanentUrl, generation_id: addResult._id }
+    return isHttp ? httpResponse(200, okResult) : okResult
 
   } catch (err) {
     console.error(`[generateImage] error — task=${task_id}:`, err.message)
@@ -404,6 +418,7 @@ exports.main = async (event) => {
       }
     }
 
-    return { success: false, error: err.message }
+    const failResult = { success: false, error: err.message }
+    return isHttp ? httpResponse(200, failResult) : failResult
   }
 }

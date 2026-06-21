@@ -7,7 +7,7 @@ import { uploadBase64 } from "@/lib/upload";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
 import { createHash } from "crypto";
-import app from "@/lib/cloudbase/server";
+import axios from "axios";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -190,96 +190,41 @@ export async function POST(request: NextRequest) {
       reference_image_urls: referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined,
     };
 
-    console.log(`[generate] calling cloud function — model=${model} t=${Date.now()}`);
+    const TCB_HTTP_URL = `https://${process.env.TCB_ENV_ID || process.env.NEXT_PUBLIC_TCB_ENV_ID}.service.tcloudbase.com/generateImage`;
+    console.log(`[generate] calling HTTP trigger — model=${model} t=${Date.now()}`);
 
-    let cfResult: any;
-    let timedOut = false;
-    try {
-      cfResult = await app.callFunction({
-        name: "generateImage",
-        data: cloudFunctionPayload,
-        timeout: 300000,
-      });
-      console.log(`[generate] callFunction returned — t=${Date.now()}`);
-    } catch (cfErr: any) {
-      console.log(`[generate] callFunction error — ${cfErr?.message} t=${Date.now()}`);
-      const isTimeout = /timeout|ETIMEDOUT/i.test(cfErr?.message);
-      if (isTimeout) {
-        console.log(`[generate] callFunction timeout — will retry from DB`);
-        timedOut = true;
-      } else {
-        throw cfErr;
-      }
-    }
+    const cfResp = await axios.post(TCB_HTTP_URL, cloudFunctionPayload, {
+      headers: { "Content-Type": "application/json" },
+      timeout: 300000, // 5 分钟，axios 的 timeout 是真正的 socket 超时
+    });
 
-    // 6.3 处理云函数结果
-    if (!timedOut) {
-      const cfData = cfResult?.result;
-      if (!cfData?.success) {
-        // 云函数内部失败，退还额度
-        if (creditDeducted && creditCost > 0 && user) {
-          const { data } = await serverDb.collection("user_credits")
-            .where({ user_id: user!.uid }).limit(1).get();
-          const doc = data?.[0];
-          if (doc) {
-            await serverDb.collection("user_credits").doc(doc._id).update({
-              balance: serverDb.command.inc(creditCost),
-              total_used: serverDb.command.inc(-creditCost),
-              updated_at: new Date().toISOString(),
-            });
-          }
+    // HTTP 触发器返回 { statusCode, body: "json-string" }
+    const cfData = typeof cfResp.data === "string" ? JSON.parse(cfResp.data) : cfResp.data;
+    console.log(`[generate] HTTP trigger returned — t=${Date.now()} success=${cfData?.success}`);
+
+    if (!cfData?.success) {
+      // 云函数内部失败，退还额度
+      if (creditDeducted && creditCost > 0 && user) {
+        const { data } = await serverDb.collection("user_credits")
+          .where({ user_id: user!.uid }).limit(1).get();
+        const doc = data?.[0];
+        if (doc) {
+          await serverDb.collection("user_credits").doc(doc._id).update({
+            balance: serverDb.command.inc(creditCost),
+            total_used: serverDb.command.inc(-creditCost),
+            updated_at: new Date().toISOString(),
+          });
         }
-        const msg = cfData?.error || "生成失败，请稍后重试";
-        return Response.json({ error: msg }, { status: 500 });
       }
-
-      console.log(`[generate] done — image=${cfData.image_url}`);
-      return Response.json({
-        success: true,
-        image_url: cfData.image_url,
-        generation_id: cfData.generation_id,
-      });
+      const msg = cfData?.error || "生成失败，请稍后重试";
+      return Response.json({ error: msg }, { status: 500 });
     }
 
-    // SDK 超时 — 等几秒后查数据库拿结果（云函数可能已经写入了）
-    console.log(`[generate] waiting for cloud function to finish... t=${Date.now()}`);
-    for (let i = 0; i < 6; i++) {
-      await new Promise((r) => setTimeout(r, 10000)); // 每 10 秒查一次，最多 60 秒
-      console.log(`[generate] retry ${i + 1}/6 — checking DB t=${Date.now()}`);
-      try {
-        const { data: gens } = await serverDb
-          .collection("generations")
-          .where({ user_id: user!.uid })
-          .order("created_at", "desc")
-          .limit(1)
-          .get();
-        const latest = gens?.[0];
-        if (latest) {
-          const genTime = new Date(latest.created_at).getTime();
-          const createTime = Date.now() - 120_000; // 2 分钟内创建的
-          console.log(`[generate] latest gen time=${new Date(genTime).toISOString()} cutoff=${new Date(createTime).toISOString()}`);
-          if (genTime >= createTime) {
-            console.log(`[generate] found result after timeout — ${latest.image_url}`);
-            return Response.json({
-              success: true,
-              image_url: latest.image_url,
-              generation_id: latest._id,
-            });
-          }
-        } else {
-          console.log(`[generate] no generations found for user`);
-        }
-      } catch (e: any) {
-        console.log(`[generate] DB query error: ${e?.message}`);
-      }
-    }
-
-    // 60 秒后还没查到，返回 generating 状态让前端提示用户
-    console.log(`[generate] cloud function still running after 60s retry`);
+    console.log(`[generate] done — image=${cfData.image_url}`);
     return Response.json({
       success: true,
-      status: "generating",
-      message: "图片生成较慢，请稍后到画廊查看结果",
+      image_url: cfData.image_url,
+      generation_id: cfData.generation_id,
     });
 
   } catch (error: any) {
