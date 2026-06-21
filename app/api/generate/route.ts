@@ -197,8 +197,8 @@ export async function POST(request: NextRequest) {
       timeout: 180000,
     });
 
-    // 6.3 处理云函数结果
-    const cfData = cfResult?.data;
+    // 6.3 处理云函数结果（CloudBase SDK 返回 { result: ... }）
+    const cfData = cfResult?.result;
     if (!cfData?.success) {
       // 云函数内部失败（敏感词/生成失败等），退还额度
       if (creditDeducted && creditCost > 0 && user) {
