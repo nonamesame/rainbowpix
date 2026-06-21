@@ -145,7 +145,7 @@ export default function GeneratePageClient({
     }
   }, [initialRef]);
 
-  // Restore loading state from pending generation
+  // Restore loading state from pending generation + 立即检查一次状态
   useEffect(() => {
     if (pending && !result) {
       // Clear stale pending (older than 5 minutes — generation should be done)
@@ -154,6 +154,22 @@ export default function GeneratePageClient({
         return;
       }
       setLoading(true);
+
+      // 立即检查一次任务状态（避免等 2 秒轮询间隔）
+      fetch(`/api/task/${pending.taskId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.status === "completed") {
+            completePending({ image_url: data.image_url, generation_id: data.generation_id });
+            setLoading(false);
+            toast.success("生成成功");
+          } else if (data?.status === "failed") {
+            clearPending();
+            setLoading(false);
+            toast.error(data.error || "生成失败，请稍后重试");
+          }
+        })
+        .catch(() => {});
     }
   }, [pending, result]);
 
