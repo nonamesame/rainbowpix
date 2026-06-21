@@ -193,6 +193,7 @@ export async function POST(request: NextRequest) {
     console.log(`[generate] calling cloud function — model=${model}`);
 
     let cfResult: any;
+    let timedOut = false;
     try {
       cfResult = await app.callFunction({
         name: "generateImage",
@@ -200,44 +201,77 @@ export async function POST(request: NextRequest) {
         timeout: 300000,
       });
     } catch (cfErr: any) {
-      // SDK 超时 ≠ 云函数失败（云函数可能仍在运行并成功写入 generations）
       const isTimeout = /timeout|ETIMEDOUT/i.test(cfErr?.message);
       if (isTimeout) {
         console.log(`[generate] callFunction timeout — cloud function may still be running`);
-        return Response.json({
-          success: true,
-          status: "generating",
-          message: "图片正在生成中，请稍后到画廊查看结果",
-        });
+        timedOut = true;
+      } else {
+        throw cfErr;
       }
-      throw cfErr;
     }
 
-    // 6.3 处理云函数结果（CloudBase SDK 返回 { result: ... }）
-    const cfData = cfResult?.result;
-    if (!cfData?.success) {
-      // 云函数内部失败（敏感词/生成失败等），退还额度
-      if (creditDeducted && creditCost > 0 && user) {
-        const { data } = await serverDb.collection("user_credits")
-          .where({ user_id: user!.uid }).limit(1).get();
-        const doc = data?.[0];
-        if (doc) {
-          await serverDb.collection("user_credits").doc(doc._id).update({
-            balance: serverDb.command.inc(creditCost),
-            total_used: serverDb.command.inc(-creditCost),
-            updated_at: new Date().toISOString(),
-          });
+    // 6.3 处理云函数结果
+    if (!timedOut) {
+      const cfData = cfResult?.result;
+      if (!cfData?.success) {
+        // 云函数内部失败，退还额度
+        if (creditDeducted && creditCost > 0 && user) {
+          const { data } = await serverDb.collection("user_credits")
+            .where({ user_id: user!.uid }).limit(1).get();
+          const doc = data?.[0];
+          if (doc) {
+            await serverDb.collection("user_credits").doc(doc._id).update({
+              balance: serverDb.command.inc(creditCost),
+              total_used: serverDb.command.inc(-creditCost),
+              updated_at: new Date().toISOString(),
+            });
+          }
         }
+        const msg = cfData?.error || "生成失败，请稍后重试";
+        return Response.json({ error: msg }, { status: 500 });
       }
-      const msg = cfData?.error || "生成失败，请稍后重试";
-      return Response.json({ error: msg }, { status: 500 });
+
+      console.log(`[generate] done — image=${cfData.image_url}`);
+      return Response.json({
+        success: true,
+        image_url: cfData.image_url,
+        generation_id: cfData.generation_id,
+      });
     }
 
-    console.log(`[generate] done — image=${cfData.image_url}`);
+    // SDK 超时 — 等几秒后查数据库拿结果（云函数可能已经写入了）
+    console.log(`[generate] waiting for cloud function to finish...`);
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 10000)); // 每 10 秒查一次，最多 60 秒
+      try {
+        const { data: gens } = await serverDb
+          .collection("generations")
+          .where({ user_id: user!.uid })
+          .order("created_at", "desc")
+          .limit(1)
+          .get();
+        const latest = gens?.[0];
+        if (latest) {
+          const genTime = new Date(latest.created_at).getTime();
+          const createTime = Date.now() - 120_000; // 2 分钟内创建的
+          if (genTime >= createTime) {
+            console.log(`[generate] found result after timeout — ${latest.image_url}`);
+            return Response.json({
+              success: true,
+              image_url: latest.image_url,
+              generation_id: latest._id,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // 60 秒后还没查到，返回 generating 状态让前端提示用户
+    console.log(`[generate] cloud function still running after 60s retry`);
     return Response.json({
       success: true,
-      image_url: cfData.image_url,
-      generation_id: cfData.generation_id,
+      status: "generating",
+      message: "图片生成较慢，请稍后到画廊查看结果",
     });
 
   } catch (error: any) {
