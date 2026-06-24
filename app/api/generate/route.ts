@@ -3,11 +3,9 @@ import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
-import { uploadBase64 } from "@/lib/upload";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
 import { createHash } from "crypto";
-import axios from "axios";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -174,15 +172,26 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // 6. 调用云函数同步生图（等待结果直接返回）
+    // 6. 异步触发云函数生图（立即返回 task_id，前端轮询结果）
     // ============================================================
 
     // 6.1 记录幂等键
     await recordIdempotentKey(idempotencyKey);
 
-    // 6.2 调用云函数 — 同步等待结果
+    // 6.2 创建任务记录（CloudBase add() 自动生成 _id）
+    const taskAddResult = await serverDb.collection("generation_tasks").add({
+      user_id: user!.uid,
+      prompt,
+      model,
+      aspect_ratio: aspectRatio,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    });
+    const taskId = taskAddResult.id;
+
+    // 6.3 Fire-and-forget 调用云函数 HTTP 触发器（不等待结果）
     const cloudFunctionPayload = {
-      task_id: "sync-" + Date.now().toString(36),
+      task_id: taskId,
       user_id: user!.uid,
       prompt,
       model,
@@ -191,20 +200,33 @@ export async function POST(request: NextRequest) {
     };
 
     const TCB_HTTP_URL = `https://${process.env.TCB_ENV_ID || process.env.NEXT_PUBLIC_TCB_ENV_ID}.service.tcloudbase.com/generateImage`;
-    console.log(`[generate] calling HTTP trigger — model=${model} t=${Date.now()}`);
+    console.log(`[generate] async trigger — task=${taskId} model=${model} t=${Date.now()}`);
 
-    const cfResp = await axios.post(TCB_HTTP_URL, cloudFunctionPayload, {
+    fetch(TCB_HTTP_URL, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      timeout: 300000, // 5 分钟，axios 的 timeout 是真正的 socket 超时
+      body: JSON.stringify(cloudFunctionPayload),
+    }).catch((err) => {
+      // HTTP 触发器本身失败（网络错误等），标记任务失败
+      console.error(`[generate] HTTP trigger fire-and-forget failed — task=${taskId}:`, err.message);
+      serverDb.collection("generation_tasks").doc(taskId).update({
+        status: "failed",
+        error: "触发生成失败，请重试",
+        completed_at: new Date().toISOString(),
+      }).catch(() => {});
     });
 
-    // HTTP 触发器返回 { statusCode, body: "json-string" }
-    const cfData = typeof cfResp.data === "string" ? JSON.parse(cfResp.data) : cfResp.data;
-    console.log(`[generate] HTTP trigger returned — t=${Date.now()} success=${cfData?.success}`);
+    // 6.4 立即返回 task_id，前端通过轮询获取结果
+    console.log(`[generate] returned task_id — task=${taskId}`);
+    return Response.json({
+      success: true,
+      task_id: taskId,
+    });
 
-    if (!cfData?.success) {
-      // 云函数内部失败，退还额度
-      if (creditDeducted && creditCost > 0 && user) {
+  } catch (error: any) {
+    // 任务创建之前的失败（如额度扣减失败），回滚已扣减的额度
+    if (creditDeducted && creditCost > 0 && user) {
+      try {
         const { data } = await serverDb.collection("user_credits")
           .where({ user_id: user!.uid }).limit(1).get();
         const doc = data?.[0];
@@ -215,38 +237,10 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           });
         }
-      }
-      const msg = cfData?.error || "生成失败，请稍后重试";
-      return Response.json({ error: msg }, { status: 500 });
-    }
-
-    console.log(`[generate] done — image=${cfData.image_url}`);
-    return Response.json({
-      success: true,
-      image_url: cfData.image_url,
-      generation_id: cfData.generation_id,
-    });
-
-  } catch (error: any) {
-    // 生成失败时回滚已扣减的额度
-    if (creditDeducted && creditCost > 0 && user) {
-      const { data } = await serverDb.collection("user_credits")
-        .where({ user_id: user!.uid }).limit(1).get();
-      const doc = data?.[0];
-      if (doc) {
-        await serverDb.collection("user_credits").doc(doc._id).update({
-          balance: serverDb.command.inc(creditCost),
-          total_used: serverDb.command.inc(-creditCost),
-          updated_at: new Date().toISOString(),
-        });
-      }
+      } catch {}
     }
 
     console.error("Generate API error:", error?.message);
-    if (error.response?.data) {
-      console.error("API response:", error.response.data);
-    }
-
     Sentry.captureException(error instanceof Error ? error : new Error(String(error)));
     const message = friendlyError(error);
     return Response.json({ error: message }, { status: 500 });

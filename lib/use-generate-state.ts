@@ -18,6 +18,7 @@ interface PersistedState {
   size: string;
   result: GenerateResult | null;
   saved: boolean;
+  taskId: string | null;
 }
 
 const DEFAULTS: PersistedState = {
@@ -26,6 +27,7 @@ const DEFAULTS: PersistedState = {
   size: "1:1",
   result: null,
   saved: false,
+  taskId: null,
 };
 
 function load(): PersistedState | null {
@@ -52,6 +54,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
   const [size, setSize] = useState(hasUrlParams && initial?.size ? initial.size : DEFAULTS.size);
   const [result, setResult] = useState<GenerateResult | null>(DEFAULTS.result);
   const [resultSaved, setResultSaved] = useState(DEFAULTS.saved);
+  const [taskId, setTaskId] = useState<string | null>(DEFAULTS.taskId);
 
   // Hydrate from localStorage after mount
   useEffect(() => {
@@ -66,6 +69,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
       if (saved.size) setSize(saved.size);
       if (saved.result) setResult(saved.result);
       if (saved.saved) setResultSaved(saved.saved);
+      if (saved.taskId && !saved.result) setTaskId(saved.taskId);
     }
     setHydrated(true);
   }, [hasUrlParams]);
@@ -91,14 +95,14 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
   }, []);
 
   // Ref to track current state for synchronous saves
-  const stateRef = useRef({ model, prompt, size, result, saved: resultSaved });
-  stateRef.current = { model, prompt, size, result, saved: resultSaved };
+  const stateRef = useRef({ model, prompt, size, result, saved: resultSaved, taskId });
+  stateRef.current = { model, prompt, size, result, saved: resultSaved, taskId };
 
   // Persist on every state change
   useEffect(() => {
     if (!hydrated) return;
     save(stateRef.current);
-  }, [hydrated, model, prompt, size, result, resultSaved]);
+  }, [hydrated, model, prompt, size, result, resultSaved, taskId]);
 
   const reset = useCallback(() => {
     setModel(DEFAULTS.model);
@@ -106,6 +110,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
     setSize(DEFAULTS.size);
     setResult(null);
     setResultSaved(false);
+    setTaskId(null);
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }, []);
 
@@ -115,6 +120,7 @@ export function useGenerateState(hasUrlParams = false, initial?: { prompt?: stri
     size, setSize,
     result, setResult,
     resultSaved, setResultSaved,
+    taskId, setTaskId,
     reset,
   };
 }

@@ -63,6 +63,7 @@ export default function GeneratePageClient({
     size, setSize,
     result, setResult,
     resultSaved, setResultSaved,
+    taskId, setTaskId,
   } = useGenerateState(hasUrlParams, {
     prompt: initialPrompt,
     model: initialModel,
@@ -141,6 +142,61 @@ export default function GeneratePageClient({
       } catch {}
     }
   }, [initialRef]);
+
+  // 轮询任务状态：taskId 存在且无结果时，每 2 秒查询一次
+  useEffect(() => {
+    if (!taskId || result) return;
+
+    let done = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const MAX_WAIT = 5 * 60 * 1000; // 5 分钟超时
+
+    async function poll() {
+      if (done) return;
+      try {
+        const res = await fetch(`/api/task/${taskId}?check_generation=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.status === "completed" && data.image_url) {
+          setResult({ image_url: data.image_url, generation_id: data.generation_id });
+          setTaskId(null);
+          setLoading(false);
+          toast.success("生成成功");
+          done = true;
+          if (timer) clearInterval(timer);
+        } else if (data.status === "failed") {
+          setLoading(false);
+          setPromptError(data.error || "生成失败");
+          toast.error(data.error || "生成失败");
+          setTaskId(null);
+          done = true;
+          if (timer) clearInterval(timer);
+        }
+      } catch {}
+    }
+
+    // 超时保护
+    const timeout = setTimeout(() => {
+      if (!done) {
+        setLoading(false);
+        setPromptError("生成超时，请到画廊查看是否已生成");
+        toast.error("生成超时，请到画廊查看", { duration: 5000 });
+        setTaskId(null);
+        done = true;
+        if (timer) clearInterval(timer);
+      }
+    }, MAX_WAIT);
+
+    timer = setInterval(poll, 2000);
+    poll(); // 立即查一次
+
+    return () => {
+      done = true;
+      if (timer) clearInterval(timer);
+      clearTimeout(timeout);
+    };
+  }, [taskId, result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentModel = models.find((m) => m.id === mapModelId(model));
   const supportedRatios = currentModel?.supportedAspectRatios || ["1:1"];
@@ -276,7 +332,7 @@ export default function GeneratePageClient({
         formData.append("reference_image", file);
       }
 
-      // 同步调用，等待云函数生成完毕直接返回结果
+      // 异步触发：立即返回 task_id，前端轮询获取结果
       console.log(`[gen] sending request — t=${Date.now()}`);
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -307,10 +363,16 @@ export default function GeneratePageClient({
         return;
       }
 
-      // 直接拿到结果，显示图片
-      setResult({ image_url: data.image_url, generation_id: data.generation_id });
-      setLoading(false);
-      toast.success("生成成功");
+      // 拿到 task_id，设置轮询（polling useEffect 会自动开始）
+      if (data.task_id) {
+        setTaskId(data.task_id);
+        // loading 保持 true，polling useEffect 完成后会设为 false
+      } else {
+        // 兜底：如果接口没返回 task_id（旧格式），直接当同步结果处理
+        setResult({ image_url: data.image_url, generation_id: data.generation_id });
+        setLoading(false);
+        toast.success("生成成功");
+      }
     } catch {
       setLoading(false);
       toast.error("请求失败，请重试");
