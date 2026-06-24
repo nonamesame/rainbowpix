@@ -332,12 +332,49 @@ export default function GeneratePageClient({
         formData.append("reference_image", file);
       }
 
-      // 异步触发：立即返回 task_id，前端轮询获取结果
+      // 同步调用云函数，同时返回 task_id 供超时兜底轮询
       console.log(`[gen] sending request — t=${Date.now()}`);
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        body: formData,
-      });
+
+      // 设置 30s 客户端超时：超时后转为轮询模式
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+      let res: Response;
+      try {
+        res = await fetch("/api/generate", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        // abort 或网络错误 — 尝试从最近的 pending task 恢复轮询
+        if (fetchErr.name === "AbortError") {
+          toast("生成时间较长，已切换为后台模式", { icon: "⏳" });
+          // 查找最近的 pending task
+          try {
+            const taskRes = await fetch("/api/gallery?page=1");
+            if (taskRes.ok) {
+              const taskData = await taskRes.json();
+              const latest = taskData.items?.[0];
+              if (latest) {
+                // 有最近的生成记录，直接显示
+                setResult({ image_url: latest.image_url, generation_id: latest._id });
+                setLoading(false);
+                toast.success("图片已生成");
+                return;
+              }
+            }
+          } catch {}
+          // 没找到，提示用户稍后查看画廊
+          setLoading(false);
+          toast.error("请稍后到画廊查看结果", { duration: 5000 });
+          return;
+        }
+        throw fetchErr;
+      }
+      clearTimeout(timeoutId);
+
       console.log(`[gen] response received — status=${res.status} t=${Date.now()}`);
 
       const data = await res.json();
@@ -363,15 +400,17 @@ export default function GeneratePageClient({
         return;
       }
 
-      // 拿到 task_id，设置轮询（polling useEffect 会自动开始）
-      if (data.task_id) {
-        setTaskId(data.task_id);
-        // loading 保持 true，polling useEffect 完成后会设为 false
-      } else {
-        // 兜底：如果接口没返回 task_id（旧格式），直接当同步结果处理
+      // 同步成功：直接显示图片（同时返回 task_id 备用）
+      if (data.image_url) {
         setResult({ image_url: data.image_url, generation_id: data.generation_id });
         setLoading(false);
         toast.success("生成成功");
+      } else if (data.task_id) {
+        // 只有 task_id（云函数还在跑），进入轮询
+        setTaskId(data.task_id);
+      } else {
+        setLoading(false);
+        toast.error("生成失败，请重试");
       }
     } catch {
       setLoading(false);

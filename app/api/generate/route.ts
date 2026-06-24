@@ -6,6 +6,7 @@ import { checkPrompt } from "@/lib/security";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
 import { createHash } from "crypto";
+import axios from "axios";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -172,13 +173,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // 6. 异步触发云函数生图（立即返回 task_id，前端轮询结果）
+    // 6. 调用云函数同步生图，同时创建 task 记录供前端轮询兜底
     // ============================================================
 
     // 6.1 记录幂等键
     await recordIdempotentKey(idempotencyKey);
 
-    // 6.2 创建任务记录（CloudBase add() 自动生成 _id）
+    // 6.2 创建任务记录
     const taskAddResult = await serverDb.collection("generation_tasks").add({
       user_id: user!.uid,
       prompt,
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
     });
     const taskId = taskAddResult.id;
 
-    // 6.3 Fire-and-forget 调用云函数 HTTP 触发器（不等待结果）
+    // 6.3 调用云函数 — 同步等待结果
     const cloudFunctionPayload = {
       task_id: taskId,
       user_id: user!.uid,
@@ -200,26 +201,42 @@ export async function POST(request: NextRequest) {
     };
 
     const TCB_HTTP_URL = `https://${process.env.TCB_ENV_ID || process.env.NEXT_PUBLIC_TCB_ENV_ID}.service.tcloudbase.com/generateImage`;
-    console.log(`[generate] async trigger — task=${taskId} model=${model} t=${Date.now()}`);
+    console.log(`[generate] calling HTTP trigger — task=${taskId} model=${model} t=${Date.now()}`);
 
-    fetch(TCB_HTTP_URL, {
-      method: "POST",
+    const cfResp = await axios.post(TCB_HTTP_URL, cloudFunctionPayload, {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cloudFunctionPayload),
-    }).catch((err) => {
-      // HTTP 触发器本身失败（网络错误等），标记任务失败
-      console.error(`[generate] HTTP trigger fire-and-forget failed — task=${taskId}:`, err.message);
-      serverDb.collection("generation_tasks").doc(taskId).update({
-        status: "failed",
-        error: "触发生成失败，请重试",
-        completed_at: new Date().toISOString(),
-      }).catch(() => {});
+      timeout: 300000, // 5 分钟
     });
 
-    // 6.4 立即返回 task_id，前端通过轮询获取结果
-    console.log(`[generate] returned task_id — task=${taskId}`);
+    // HTTP 触发器返回 { statusCode, body: "json-string" }
+    const cfData = typeof cfResp.data === "string" ? JSON.parse(cfResp.data) : cfResp.data;
+    console.log(`[generate] HTTP trigger returned — t=${Date.now()} success=${cfData?.success}`);
+
+    if (!cfData?.success) {
+      // 云函数内部失败，退还额度
+      if (creditDeducted && creditCost > 0 && user) {
+        try {
+          const { data } = await serverDb.collection("user_credits")
+            .where({ user_id: user!.uid }).limit(1).get();
+          const doc = data?.[0];
+          if (doc) {
+            await serverDb.collection("user_credits").doc(doc._id).update({
+              balance: serverDb.command.inc(creditCost),
+              total_used: serverDb.command.inc(-creditCost),
+              updated_at: new Date().toISOString(),
+            });
+          }
+        } catch {}
+      }
+      const msg = cfData?.error || "生成失败，请稍后重试";
+      return Response.json({ error: msg, task_id: taskId }, { status: 500 });
+    }
+
+    console.log(`[generate] done — image=${cfData.image_url}`);
     return Response.json({
       success: true,
+      image_url: cfData.image_url,
+      generation_id: cfData.generation_id,
       task_id: taskId,
     });
 
