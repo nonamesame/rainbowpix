@@ -116,6 +116,8 @@ function signVolcRequest(bodyStr) {
 async function generateJimeng(prompt, negativePrompt, width, height, referenceImageBase64, reqKey, modelVersion) {
   const isImg2Img = !!referenceImageBase64
   const isV4 = modelVersion === 'v4'
+  const jimengStart = Date.now()
+  console.log(`[jimeng] reqKey=${reqKey || (isImg2Img ? 'jimeng_i2i_v40' : 'jimeng_t2i_v40')} v4=${isV4} img2img=${isImg2Img} size=${width}x${height}`)
 
   const body = {
     req_key: reqKey || (isImg2Img ? 'jimeng_i2i_v40' : 'jimeng_t2i_v40'),
@@ -138,16 +140,23 @@ async function generateJimeng(prompt, negativePrompt, width, height, referenceIm
 
   const resp = await axios.post(url, bodyStr, { headers, timeout: 120_000 })
   const data = resp.data
+  console.log(`[jimeng] api responded code=${data.code} httpTime=${Date.now() - jimengStart}ms`)
 
   if (data.code !== 10000) {
     throw new Error(`即梦 API 错误 [${data.code}]: ${data.message}`)
   }
 
-  if (data.data?.image_urls?.length > 0) return data.data.image_urls[0]
+  if (data.data?.image_urls?.length > 0) {
+    console.log(`[jimeng] done via url total=${Date.now() - jimengStart}ms`)
+    return data.data.image_urls[0]
+  }
   if (data.data?.binary_data_base64) {
     const b64 = Array.isArray(data.data.binary_data_base64)
       ? data.data.binary_data_base64[0] : data.data.binary_data_base64
-    if (b64) return `data:image/png;base64,${b64}`
+    if (b64) {
+      console.log(`[jimeng] done via base64 total=${Date.now() - jimengStart}ms`)
+      return `data:image/png;base64,${b64}`
+    }
   }
   throw new Error('即梦 API 未返回图片数据')
 }
@@ -168,6 +177,8 @@ async function generateHMVI(prompt, size, referenceImagesBase64) {
   const hasRef = referenceImagesBase64 && referenceImagesBase64.length > 0
   const HMVI_BASE_URL = process.env.HMVI_BASE_URL
   const HMVI_API_KEY = process.env.HMVI_API_KEY
+  const hmviStart = Date.now()
+  console.log(`[hmvi] hasRef=${hasRef} refCount=${referenceImagesBase64?.length || 0} size=${size}`)
 
   if (hasRef) {
     const FormData = require('form-data')
@@ -182,27 +193,33 @@ async function generateHMVI(prompt, size, referenceImagesBase64) {
     form.append('size', size)
     form.append('response_format', 'b64_json')
 
+    console.log(`[hmvi] calling /images/edits (with ref) t=${Date.now() - hmviStart}ms`)
     const response = await axios.post(`${HMVI_BASE_URL}/images/edits`, form, {
       headers: { Authorization: `Bearer ${HMVI_API_KEY}`, ...form.getHeaders() },
       timeout: 120_000,
     })
+    console.log(`[hmvi] /images/edits responded httpTime=${Date.now() - hmviStart}ms`)
     if (response.data.error) throw new Error(response.data.error.message || 'GPT Image 2 生成失败')
     if (!response.data.data?.length) throw new Error('该提示词可能包含违禁词')
     const b64 = response.data.data[0].b64_json
     if (!b64) throw new Error('GPT Image 2 未返回图片数据')
+    console.log(`[hmvi] done via edits base64 total=${Date.now() - hmviStart}ms`)
     return `data:image/png;base64,${b64}`
   }
 
+  console.log(`[hmvi] calling /images/generations (no ref) t=${Date.now() - hmviStart}ms`)
   const response = await axios.post(`${HMVI_BASE_URL}/images/generations`, {
     prompt, model: 'gpt-image-2-1k', n: 1, size, response_format: 'b64_json',
   }, {
     headers: { Authorization: `Bearer ${HMVI_API_KEY}`, 'Content-Type': 'application/json' },
     timeout: 120_000,
   })
+  console.log(`[hmvi] /images/generations responded httpTime=${Date.now() - hmviStart}ms`)
   if (response.data.error) throw new Error(response.data.error.message || 'GPT Image 2 生成失败')
   if (!response.data.data?.length) throw new Error('提示词可能包含违规内容')
   const b64 = response.data.data[0].b64_json
   if (!b64) throw new Error('GPT Image 2 未返回图片数据')
+  console.log(`[hmvi] done via generations base64 total=${Date.now() - hmviStart}ms`)
   return `data:image/png;base64,${b64}`
 }
 
@@ -213,6 +230,8 @@ async function generateModelScope(prompt, width, height) {
   const MODELSCOPE_API_KEY = process.env.MODELSCOPE_API_KEY
   const BASE_URL = 'https://api-inference.modelscope.cn/'
   const commonHeaders = { Authorization: `Bearer ${MODELSCOPE_API_KEY}`, 'Content-Type': 'application/json' }
+  const msStart = Date.now()
+  console.log(`[modelscope] submitting task size=${width}x${height}`)
 
   const submitResp = await axios.post(`${BASE_URL}v1/images/generations`, {
     model: 'Tongyi-MAI/Z-Image-Turbo', prompt, size: `${width}x${height}`,
@@ -223,7 +242,7 @@ async function generateModelScope(prompt, width, height) {
 
   const taskId = submitResp.data.task_id
   if (!taskId) throw new Error('ModelScope API 未返回 task_id')
-  console.log('[modelscope] task submitted:', taskId)
+  console.log(`[modelscope] task submitted id=${taskId} submitTime=${Date.now() - msStart}ms`)
 
   const maxAttempts = 150
   for (let i = 0; i < maxAttempts; i++) {
@@ -233,11 +252,12 @@ async function generateModelScope(prompt, width, height) {
       timeout: 10_000,
     })
     const status = result.data.task_status
-    console.log(`[modelscope] poll #${i + 1}/${maxAttempts} — status=${status}`)
+    console.log(`[modelscope] poll #${i + 1}/${maxAttempts} status=${status} elapsed=${Date.now() - msStart}ms`)
 
     if (status === 'SUCCEED') {
       const outputImages = result.data.output_images
       if (!outputImages?.length) throw new Error('ModelScope API 未返回图片数据')
+      console.log(`[modelscope] done totalPolls=${i + 1} totalTime=${Date.now() - msStart}ms`)
       return outputImages[0]
     }
     if (status === 'FAILED') {
@@ -251,17 +271,24 @@ async function generateModelScope(prompt, width, height) {
 // 上传工具（从 lib/upload.ts 提取）
 // ============================================================
 async function downloadAndUpload(tempUrl, fileName) {
+  const dlStart = Date.now()
+  console.log(`[upload] downloading temp image...`)
   const response = await axios.get(tempUrl, { responseType: 'arraybuffer', timeout: 60_000 })
   const buffer = Buffer.from(response.data)
+  console.log(`[upload] download done size=${buffer.length} bytes dl-time=${Date.now() - dlStart}ms`)
   const cloudPath = `generated-images/${fileName}`
   const uploadRes = await app.uploadFile({ cloudPath, fileContent: buffer })
+  console.log(`[upload] cloud upload done fileID=${uploadRes.fileID} total=${Date.now() - dlStart}ms`)
   return `/api/images/${encodeURIComponent(uploadRes.fileID)}`
 }
 
 async function uploadBase64(base64, fileName) {
+  const ulStart = Date.now()
   const buffer = Buffer.from(base64, 'base64')
+  console.log(`[upload] base64 decoded size=${buffer.length} bytes`)
   const cloudPath = `generated-images/${fileName}`
   const uploadRes = await app.uploadFile({ cloudPath, fileContent: buffer })
+  console.log(`[upload] cloud upload done fileID=${uploadRes.fileID} total=${Date.now() - ulStart}ms`)
   return `/api/images/${encodeURIComponent(uploadRes.fileID)}`
 }
 
@@ -308,12 +335,15 @@ exports.main = async (event) => {
   }
 
   const { task_id, user_id, prompt, model, aspect_ratio, reference_image_urls } = data
+  const cfStart = Date.now()
 
-  console.log(`[generateImage] start — task=${task_id} model=${model} user=${user_id}`)
+  console.log(`[generateImage] step=start task=${task_id} model=${model} user=${user_id} t=0ms`)
 
   try {
     // 1. 安全审核
+    const t1 = Date.now()
     const checkResult = checkPrompt(prompt)
+    console.log(`[generateImage] step=safety pass=${checkResult.passed} t=${Date.now() - cfStart}ms`)
     if (!checkResult.passed) {
       await db.collection('generation_tasks').doc(task_id).update({
         status: 'failed', error: checkResult.reason,
@@ -328,6 +358,8 @@ exports.main = async (event) => {
 
     // 3. 根据模型调用 API
     let imageUrl
+    const t3 = Date.now()
+    console.log(`[generateImage] step=model-call-start model=${model} t=${Date.now() - cfStart}ms`)
     switch (model) {
       case 'jimeng-3.0':
         imageUrl = await generateJimeng(prompt, '', width, height, undefined, 'jimeng_t2i_v30')
@@ -344,9 +376,11 @@ exports.main = async (event) => {
       default:
         throw new Error(`不支持的模型: ${model}`)
     }
-    console.log(`[generateImage] model API done — ${model}`)
+    console.log(`[generateImage] step=model-call-end model=${model} api-time=${Date.now() - t3}ms t=${Date.now() - cfStart}ms`)
 
     // 4. 上传到 CloudBase 存储
+    const t4 = Date.now()
+    console.log(`[generateImage] step=upload-start isBase64=${imageUrl.startsWith('data:')} t=${Date.now() - cfStart}ms`)
     let permanentUrl
     if (imageUrl.startsWith('data:')) {
       const base64 = imageUrl.split(',')[1]
@@ -354,9 +388,10 @@ exports.main = async (event) => {
     } else {
       permanentUrl = await downloadAndUpload(imageUrl, `${model}-${Date.now()}.png`)
     }
-    console.log(`[generateImage] upload done — ${permanentUrl}`)
+    console.log(`[generateImage] step=upload-end url=${permanentUrl} upload-time=${Date.now() - t4}ms t=${Date.now() - cfStart}ms`)
 
     // 5. 写入 generations 集合
+    const t5 = Date.now()
     const addResult = await db.collection('generations').add({
       user_id,
       prompt,
@@ -371,8 +406,10 @@ exports.main = async (event) => {
       width,
       height,
     })
+    console.log(`[generateImage] step=gen-write genId=${addResult._id} db-time=${Date.now() - t5}ms t=${Date.now() - cfStart}ms`)
 
     // 6. 更新任务状态为完成（独立 try-catch，避免写入失败导致整体报错）
+    const t6 = Date.now()
     try {
       await db.collection('generation_tasks').doc(task_id).update({
         status: 'completed',
@@ -383,11 +420,12 @@ exports.main = async (event) => {
         completed_at: new Date().toISOString(),
       })
     } catch (updateErr) {
-      console.error(`[generateImage] task status update failed — task=${task_id}:`, updateErr.message)
+      console.error(`[generateImage] step=task-update-failed task=${task_id}:`, updateErr.message)
       // 图片已生成并写入 generations，前端兜底查询可以补偿
     }
+    console.log(`[generateImage] step=task-update done task-time=${Date.now() - t6}ms t=${Date.now() - cfStart}ms`)
 
-    console.log(`[generateImage] done — task=${task_id}`)
+    console.log(`[generateImage] step=done total=${Date.now() - cfStart}ms`)
     const okResult = { success: true, image_url: permanentUrl, generation_id: addResult._id }
     return isHttp ? httpResponse(200, okResult) : okResult
 

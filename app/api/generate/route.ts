@@ -48,13 +48,16 @@ function friendlyError(error: unknown): string {
 }
 
 export async function POST(request: NextRequest) {
+  const reqStart = Date.now();
   let user: { uid: string; email?: string } | undefined;
   let creditDeducted = false;
   let creditCost = 0;
 
   try {
     // 1. 验证用户身份
+    const t0 = Date.now();
     user = getUserFromRequest(request) as { uid: string; email?: string } | undefined;
+    console.log(`[generate] step=auth uid=${user?.uid} t=${Date.now() - reqStart}ms`);
     if (!user) {
       return Response.json({ error: "未登录或登录已过期" }, { status: 401 });
     }
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
     const idempotencyPayload = `${user!.uid}:${model}:${prompt}:${aspectRatio}`;
     const idempotencyKey = createHash("sha256").update(idempotencyPayload).digest("hex");
 
-    console.log(`[generate] model=${model} prompt="${prompt.slice(0, 30)}..." size=${width}x${height}`);
+    console.log(`[generate] step=parse model=${model} prompt="${prompt.slice(0, 30)}..." size=${width}x${height} t=${Date.now() - reqStart}ms`);
     if (await isIdempotentProcessed(idempotencyKey)) {
       const recentGen = await serverDb
         .collection("generations")
@@ -140,7 +143,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. 安全审核
+    const t3 = Date.now();
     const checkResult = await checkPrompt(prompt);
+    console.log(`[generate] step=safety pass=${checkResult.passed} t=${Date.now() - reqStart}ms (took ${Date.now() - t3}ms)`);
     if (!checkResult.passed) {
       await serverDb.collection("audit_logs").add({
         user_id: user!.uid,
@@ -152,18 +157,23 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. 额度检查与扣减
+    const t4 = Date.now();
     const creditModelConfig = models.find((m) => m.id === model);
     creditCost = creditModelConfig?.creditCost || 0;
 
     if (creditCost > 0) {
       const deductResult = await deductCredits(user!.uid, creditCost);
+      console.log(`[generate] step=credit cost=${creditCost} ok=${deductResult.success} t=${Date.now() - reqStart}ms (took ${Date.now() - t4}ms)`);
       if (!deductResult.success) {
         return Response.json({ error: deductResult.error }, { status: 402 });
       }
       creditDeducted = true;
+    } else {
+      console.log(`[generate] step=credit free t=${Date.now() - reqStart}ms`);
     }
 
     // 5. 处理参考图片 — 转 base64 传给云函数（云函数需要 base64，不是 URL）
+    const t5 = Date.now();
     const referenceImagesBase64: string[] = [];
     for (const file of referenceImageFiles) {
       if (file && file.size > 0) {
@@ -171,6 +181,7 @@ export async function POST(request: NextRequest) {
         referenceImagesBase64.push(buffer.toString("base64"));
       }
     }
+    console.log(`[generate] step=ref-images count=${referenceImagesBase64.length} t=${Date.now() - reqStart}ms (took ${Date.now() - t5}ms)`);
 
     // ============================================================
     // 6. 调用云函数同步生图，同时创建 task 记录供前端轮询兜底
@@ -180,6 +191,7 @@ export async function POST(request: NextRequest) {
     await recordIdempotentKey(idempotencyKey);
 
     // 6.2 创建任务记录
+    const t62 = Date.now();
     const taskAddResult = await serverDb.collection("generation_tasks").add({
       user_id: user!.uid,
       prompt,
@@ -189,6 +201,7 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
     });
     const taskId = taskAddResult.id;
+    console.log(`[generate] step=task-created taskId=${taskId} t=${Date.now() - reqStart}ms (took ${Date.now() - t62}ms)`);
 
     // 6.3 调用云函数 — 同步等待结果
     const cloudFunctionPayload = {
@@ -201,16 +214,18 @@ export async function POST(request: NextRequest) {
     };
 
     const TCB_HTTP_URL = `https://${process.env.TCB_ENV_ID || process.env.NEXT_PUBLIC_TCB_ENV_ID}.service.tcloudbase.com/generateImage`;
-    console.log(`[generate] calling HTTP trigger — task=${taskId} model=${model} t=${Date.now()}`);
+    console.log(`[generate] step=cf-call-start taskId=${taskId} model=${model} t=${Date.now() - reqStart}ms`);
 
+    const tCf = Date.now();
     const cfResp = await axios.post(TCB_HTTP_URL, cloudFunctionPayload, {
       headers: { "Content-Type": "application/json" },
       timeout: 300000, // 5 分钟
     });
+    console.log(`[generate] step=cf-call-end taskId=${taskId} cf-time=${Date.now() - tCf}ms t=${Date.now() - reqStart}ms`);
 
     // HTTP 触发器返回 { statusCode, body: "json-string" }
     const cfData = typeof cfResp.data === "string" ? JSON.parse(cfResp.data) : cfResp.data;
-    console.log(`[generate] HTTP trigger returned — t=${Date.now()} success=${cfData?.success}`);
+    console.log(`[generate] step=cf-parsed success=${cfData?.success} t=${Date.now() - reqStart}ms`);
 
     if (!cfData?.success) {
       // 云函数内部失败，退还额度
@@ -232,7 +247,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: msg, task_id: taskId }, { status: 500 });
     }
 
-    console.log(`[generate] done — image=${cfData.image_url}`);
+    console.log(`[generate] step=done image=${cfData.image_url?.slice(0, 80)} total=${Date.now() - reqStart}ms`);
     return Response.json({
       success: true,
       image_url: cfData.image_url,

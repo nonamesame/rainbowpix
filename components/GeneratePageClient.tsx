@@ -151,6 +151,7 @@ export default function GeneratePageClient({
     let timer: ReturnType<typeof setInterval> | null = null;
     const MAX_WAIT = 5 * 60 * 1000; // 5 分钟超时
 
+    const pollStart = Date.now();
     async function poll() {
       if (done) return;
       try {
@@ -158,7 +159,10 @@ export default function GeneratePageClient({
         if (!res.ok) return;
         const data = await res.json();
 
+        console.log(`[poll] taskId=${taskId} status=${data.status} elapsed=${Date.now() - pollStart}ms`);
+
         if (data.status === "completed" && data.image_url) {
+          console.log(`[poll] step=completed totalTime=${Date.now() - pollStart}ms`);
           setResult({ image_url: data.image_url, generation_id: data.generation_id });
           setTaskId(null);
           setLoading(false);
@@ -166,6 +170,7 @@ export default function GeneratePageClient({
           done = true;
           if (timer) clearInterval(timer);
         } else if (data.status === "failed") {
+          console.log(`[poll] step=failed error=${data.error} totalTime=${Date.now() - pollStart}ms`);
           setLoading(false);
           setPromptError(data.error || "生成失败");
           toast.error(data.error || "生成失败");
@@ -179,6 +184,7 @@ export default function GeneratePageClient({
     // 超时保护
     const timeout = setTimeout(() => {
       if (!done) {
+        console.log(`[poll] step=timeout 5min elapsed totalTime=${Date.now() - pollStart}ms`);
         setLoading(false);
         setPromptError("生成超时，请到画廊查看是否已生成");
         toast.error("生成超时，请到画廊查看", { duration: 5000 });
@@ -333,7 +339,8 @@ export default function GeneratePageClient({
       }
 
       // 同步调用云函数，同时返回 task_id 供超时兜底轮询
-      console.log(`[gen] sending request — t=${Date.now()}`);
+      const reqStart = Date.now();
+      console.log(`[gen] step=request-start model=${model} t=0ms`);
 
       // 设置 30s 客户端超时：超时后转为轮询模式
       const controller = new AbortController();
@@ -350,6 +357,7 @@ export default function GeneratePageClient({
         clearTimeout(timeoutId);
         // abort 或网络错误 — 尝试从最近的 pending task 恢复轮询
         if (fetchErr.name === "AbortError") {
+          console.log(`[gen] step=30s-abort fired after 30s, switching to fallback t=${Date.now() - reqStart}ms`);
           toast("生成时间较长，已切换为后台模式", { icon: "⏳" });
           // 查找最近的 pending task
           try {
@@ -359,6 +367,7 @@ export default function GeneratePageClient({
               const latest = taskData.items?.[0];
               if (latest) {
                 // 有最近的生成记录，直接显示
+                console.log(`[gen] step=fallback-found genId=${latest._id} t=${Date.now() - reqStart}ms`);
                 setResult({ image_url: latest.image_url, generation_id: latest._id });
                 setLoading(false);
                 toast.success("图片已生成");
@@ -367,6 +376,7 @@ export default function GeneratePageClient({
             }
           } catch {}
           // 没找到，提示用户稍后查看画廊
+          console.log(`[gen] step=fallback-empty t=${Date.now() - reqStart}ms`);
           setLoading(false);
           toast.error("请稍后到画廊查看结果", { duration: 5000 });
           return;
@@ -375,10 +385,10 @@ export default function GeneratePageClient({
       }
       clearTimeout(timeoutId);
 
-      console.log(`[gen] response received — status=${res.status} t=${Date.now()}`);
+      console.log(`[gen] step=response-received status=${res.status} t=${Date.now() - reqStart}ms`);
 
       const data = await res.json();
-      console.log(`[gen] data:`, JSON.stringify(data).slice(0, 200));
+      console.log(`[gen] step=data-parsed success=${!!data.success} hasImage=${!!data.image_url} hasTask=${!!data.task_id} t=${Date.now() - reqStart}ms`);
 
       if (res.status === 401) {
         setLoading(false);
@@ -402,11 +412,13 @@ export default function GeneratePageClient({
 
       // 同步成功：直接显示图片（同时返回 task_id 备用）
       if (data.image_url) {
+        console.log(`[gen] step=sync-success totalTime=${Date.now() - reqStart}ms`);
         setResult({ image_url: data.image_url, generation_id: data.generation_id });
         setLoading(false);
         toast.success("生成成功");
       } else if (data.task_id) {
         // 只有 task_id（云函数还在跑），进入轮询
+        console.log(`[gen] step=polling-start taskId=${data.task_id} t=${Date.now() - reqStart}ms`);
         setTaskId(data.task_id);
       } else {
         setLoading(false);

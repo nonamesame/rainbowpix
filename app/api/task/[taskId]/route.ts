@@ -19,6 +19,9 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const checkGeneration = searchParams.get("check_generation") === "1";
 
+  const t0 = Date.now();
+  console.log(`[task] poll taskId=${taskId} checkGen=${checkGeneration} uid=${user.uid}`);
+
   try {
     const { data } = await serverDb
       .collection("generation_tasks")
@@ -26,12 +29,15 @@ export async function GET(
       .get();
 
     if (!data) {
+      console.log(`[task] not found taskId=${taskId} t=${Date.now() - t0}ms`);
       return Response.json({ error: "任务不存在" }, { status: 404 });
     }
 
     if (data.user_id !== user.uid) {
       return Response.json({ error: "无权访问" }, { status: 403 });
     }
+
+    console.log(`[task] status=${data.status} taskId=${taskId} t=${Date.now() - t0}ms`);
 
     // 兜底：如果任务卡在 pending，查 generations 集合看有没有最新图片
     if (checkGeneration && (data.status === "pending" || !data.status)) {
@@ -47,6 +53,7 @@ export async function GET(
         const taskTime = new Date(data.created_at).getTime();
         // 最新 generation 在任务创建之后，说明图片已生成但任务状态未更新
         if (genTime >= taskTime) {
+          console.log(`[task] fallback-compensate taskId=${taskId} genTime=${latest.created_at} t=${Date.now() - t0}ms`);
           // 补偿：更新任务状态
           await serverDb.collection("generation_tasks").doc(taskId).update({
             status: "completed",
