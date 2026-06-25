@@ -1,12 +1,11 @@
 import { getUserFromRequest } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { serverDb } from "@/lib/cloudbase/server";
+import tcbApp, { serverDb } from "@/lib/cloudbase/server";
 import { checkPrompt } from "@/lib/security";
 import { getPixelSize, models } from "@/lib/models";
 import { deductCredits, isIdempotentProcessed, recordIdempotentKey } from "@/lib/credits";
 import { createHash } from "crypto";
-import axios from "axios";
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -203,7 +202,7 @@ export async function POST(request: NextRequest) {
     const taskId = taskAddResult.id;
     console.log(`[generate] step=task-created taskId=${taskId} t=${Date.now() - reqStart}ms (took ${Date.now() - t62}ms)`);
 
-    // 6.3 调用云函数 — 同步等待结果
+    // 6.3 调用云函数 — 同步等待结果（SDK callFunction，无平台超时限制）
     const cloudFunctionPayload = {
       task_id: taskId,
       user_id: user!.uid,
@@ -213,18 +212,17 @@ export async function POST(request: NextRequest) {
       reference_image_urls: referenceImagesBase64.length > 0 ? referenceImagesBase64 : undefined,
     };
 
-    const TCB_HTTP_URL = `https://${process.env.TCB_ENV_ID || process.env.NEXT_PUBLIC_TCB_ENV_ID}.service.tcloudbase.com/generateImage`;
     console.log(`[generate] step=cf-call-start taskId=${taskId} model=${model} t=${Date.now() - reqStart}ms`);
 
     const tCf = Date.now();
-    const cfResp = await axios.post(TCB_HTTP_URL, cloudFunctionPayload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 300000, // 5 分钟
+    const cfResult = await (tcbApp as any).callFunction({
+      name: "generateImage",
+      data: cloudFunctionPayload,
+      timeout: 300000, // 5 分钟，匹配模型 API 最大耗时
     });
     console.log(`[generate] step=cf-call-end taskId=${taskId} cf-time=${Date.now() - tCf}ms t=${Date.now() - reqStart}ms`);
 
-    // HTTP 触发器返回 { statusCode, body: "json-string" }
-    const cfData = typeof cfResp.data === "string" ? JSON.parse(cfResp.data) : cfResp.data;
+    const cfData = cfResult.result;
     console.log(`[generate] step=cf-parsed success=${cfData?.success} t=${Date.now() - reqStart}ms`);
 
     if (!cfData?.success) {
